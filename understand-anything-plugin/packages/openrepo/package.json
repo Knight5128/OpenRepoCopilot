@@ -1,0 +1,28 @@
+{
+  "name": "@openrepo-copilot/server",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "openrepo": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./vite": {
+      "types": "./dist/vite-api.d.ts",
+      "default": "./dist/vite-api.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run --config vitest.config.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.1.0"
+  }
+}

@@ -5,6 +5,7 @@ import { useI18n } from "../contexts/I18nContext";
 
 interface CodeViewerProps {
   accessToken: string;
+  projectId?: string;
   presentation?: "sidebar" | "modal";
   onClose?: () => void;
   onExpand?: () => void;
@@ -23,7 +24,11 @@ type SourceState =
   | { status: "loaded"; source: SourceFile; error: null }
   | { status: "error"; source: null; error: string };
 
-function fileContentUrl(filePath: string, token: string): string {
+function fileContentUrl(filePath: string, token: string, projectId?: string): string {
+  if (projectId) {
+    const params = new URLSearchParams({ path: filePath });
+    return `/api/projects/${encodeURIComponent(projectId)}/file-content?${params.toString()}`;
+  }
   const params = new URLSearchParams({ token, path: filePath });
   return `/file-content.json?${params.toString()}`;
 }
@@ -58,6 +63,7 @@ function formatBytes(bytes: number): string {
 
 export default function CodeViewer({
   accessToken,
+  projectId,
   presentation = "sidebar",
   onClose,
   onExpand,
@@ -99,7 +105,7 @@ export default function CodeViewer({
     const controller = new AbortController();
     setState({ status: "loading", source: null, error: null });
 
-    fetch(fileContentUrl(node.filePath, accessToken), { signal: controller.signal })
+    fetch(fileContentUrl(node.filePath, accessToken, projectId), { signal: controller.signal })
       .then(async (res) => {
         const data = (await res.json()) as SourceFile | { error?: string };
         if (!res.ok) {
@@ -117,7 +123,7 @@ export default function CodeViewer({
       });
 
     return () => controller.abort();
-  }, [accessToken, node?.filePath]);
+  }, [accessToken, node?.filePath, projectId]);
 
   const highlightedRange = useMemo(() => {
     if (!node?.lineRange) return null;

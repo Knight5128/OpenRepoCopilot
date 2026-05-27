@@ -24,6 +24,7 @@ import { ThemeProvider } from "./themes/index.ts";
 import { ThemePicker } from "./components/ThemePicker.tsx";
 import type { ThemeConfig } from "./themes/index.ts";
 import { I18nProvider, useI18n } from "./contexts/I18nContext.tsx";
+import OpenRepoWorkbench from "./OpenRepoWorkbench.tsx";
 
 // Lazy-load heavy / optional components so they ship in separate chunks.
 const CodeViewer = lazy(() => import("./components/CodeViewer"));
@@ -35,6 +36,7 @@ const KeyboardShortcutsHelp = lazy(
 const OnboardingOverlay = lazy(() => import("./components/OnboardingOverlay"));
 
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
+const OPENREPO_MODE = import.meta.env.VITE_OPENREPO_MODE === "true";
 const SESSION_TOKEN_KEY = "understand-anything-token";
 const ONBOARDING_DISMISSED_KEY = "ua-onboarding-dismissed-v1";
 type SidebarTab = "info" | "files";
@@ -47,7 +49,18 @@ function shouldShowOnboarding(): boolean {
 }
 
 /** Resolve data file URL — in demo mode, use env var URLs; otherwise use local paths with token. */
-function dataUrl(fileName: string, token: string | null): string {
+function dataUrl(fileName: string, token: string | null, projectId?: string): string {
+  if (OPENREPO_MODE && projectId) {
+    const endpointMap: Record<string, string> = {
+      "knowledge-graph.json": "graph",
+      "domain-graph.json": "domain-graph",
+      "meta.json": "meta",
+      "diff-overlay.json": "diff-overlay",
+      "config.json": "config",
+    };
+    const endpoint = endpointMap[fileName] ?? fileName;
+    return `/api/projects/${encodeURIComponent(projectId)}/${endpoint}`;
+  }
   if (DEMO_MODE) {
     const envMap: Record<string, string | undefined> = {
       "knowledge-graph.json": import.meta.env.VITE_GRAPH_URL,
@@ -85,6 +98,12 @@ function resolveInitialToken(): string | null {
 }
 
 function App() {
+  if (OPENREPO_MODE) {
+    const params = new URLSearchParams(window.location.search);
+    const projectId = params.get("project");
+    return projectId ? <Dashboard accessToken="__openrepo__" projectId={projectId} /> : <OpenRepoWorkbench />;
+  }
+
   const [accessToken, setAccessToken] = useState<string | null>(resolveInitialToken);
 
   const handleTokenValid = useCallback((token: string) => {
@@ -105,7 +124,7 @@ function App() {
   return <Dashboard accessToken={accessToken} />;
 }
 
-function Dashboard({ accessToken }: { accessToken: string }) {
+function Dashboard({ accessToken, projectId }: { accessToken: string; projectId?: string }) {
   const setGraph = useDashboardStore((s) => s.setGraph);
   const setDomainGraph = useDashboardStore((s) => s.setDomainGraph);
   const setDiffOverlay = useDashboardStore((s) => s.setDiffOverlay);
@@ -115,22 +134,22 @@ function Dashboard({ accessToken }: { accessToken: string }) {
   const [outputLanguage, setOutputLanguage] = useState<string | undefined>();
 
   useEffect(() => {
-    fetch(dataUrl("meta.json", accessToken))
+    fetch(dataUrl("meta.json", accessToken, projectId))
       .then((r) => (r.ok ? r.json() : null))
       .then((meta) => {
         if (meta?.theme) setMetaTheme(meta.theme);
       })
       .catch(() => {});
-    fetch(dataUrl("config.json", accessToken))
+    fetch(dataUrl("config.json", accessToken, projectId))
       .then((r) => (r.ok ? r.json() : null))
       .then((config) => {
         if (config?.outputLanguage) setOutputLanguage(config.outputLanguage);
       })
       .catch(() => {});
-  }, []);
+  }, [accessToken, projectId]);
 
   useEffect(() => {
-    fetch(dataUrl("knowledge-graph.json", accessToken))
+    fetch(dataUrl("knowledge-graph.json", accessToken, projectId))
       .then((res) => res.json())
       .then((data: unknown) => {
         const result = validateGraph(data);
@@ -160,10 +179,10 @@ function Dashboard({ accessToken }: { accessToken: string }) {
         console.error("Failed to load knowledge graph:", err);
         setLoadError(`Failed to load knowledge graph: ${err instanceof Error ? err.message : String(err)}`);
       });
-  }, [setGraph]);
+  }, [accessToken, projectId, setGraph]);
 
   useEffect(() => {
-    fetch(dataUrl("diff-overlay.json", accessToken))
+    fetch(dataUrl("diff-overlay.json", accessToken, projectId))
       .then((res) => {
         if (!res.ok) return null;
         return res.json();
@@ -184,10 +203,10 @@ function Dashboard({ accessToken }: { accessToken: string }) {
         }
       })
       .catch(() => {});
-  }, [setDiffOverlay]);
+  }, [accessToken, projectId, setDiffOverlay]);
 
   useEffect(() => {
-    fetch(dataUrl("domain-graph.json", accessToken))
+    fetch(dataUrl("domain-graph.json", accessToken, projectId))
       .then((res) => {
         if (!res.ok) return null;
         return res.json();
@@ -202,13 +221,14 @@ function Dashboard({ accessToken }: { accessToken: string }) {
         }
       })
       .catch(() => {});
-  }, [setDomainGraph]);
+  }, [accessToken, projectId, setDomainGraph]);
 
   return (
     <I18nProvider language={outputLanguage ?? "en"}>
       <ThemeProvider metaTheme={metaTheme}>
         <DashboardContent
           accessToken={accessToken}
+          projectId={projectId}
           loadError={loadError}
           graphIssues={graphIssues}
         />
@@ -219,10 +239,12 @@ function Dashboard({ accessToken }: { accessToken: string }) {
 
 function DashboardContent({
   accessToken,
+  projectId,
   loadError,
   graphIssues,
 }: {
   accessToken: string;
+  projectId?: string;
   loadError: string | null;
   graphIssues: GraphIssue[];
 }) {
@@ -447,6 +469,14 @@ function DashboardContent({
           <h1 className="font-heading text-base sm:text-lg text-text-primary tracking-wide truncate max-w-[160px] sm:max-w-[220px] lg:max-w-none">
             {graph?.project.name ?? t.common.appName}
           </h1>
+          {OPENREPO_MODE && (
+            <a
+              href="/"
+              className="rounded-md border border-border-medium bg-elevated px-2 py-1 text-xs font-semibold text-text-muted transition hover:text-text-primary"
+            >
+              Projects
+            </a>
+          )}
           <div className="w-px h-5 bg-border-subtle hidden sm:block" />
           <PersonaSelector />
           {graph && !isKnowledgeGraph && domainGraph && (
@@ -656,7 +686,7 @@ function DashboardContent({
         {codeViewerOpen && !codeViewerExpanded && (
           <div className="absolute bottom-0 left-0 right-0 h-[40vh] bg-surface border-t border-border-subtle animate-slide-up z-20 overflow-hidden">
             <Suspense fallback={null}>
-              <CodeViewer accessToken={accessToken} onExpand={expandCodeViewer} />
+              <CodeViewer accessToken={accessToken} projectId={projectId} onExpand={expandCodeViewer} />
             </Suspense>
           </div>
         )}
@@ -675,6 +705,7 @@ function DashboardContent({
             <Suspense fallback={null}>
               <CodeViewer
                 accessToken={accessToken}
+                projectId={projectId}
                 presentation="modal"
                 onClose={collapseCodeViewer}
               />

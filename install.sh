@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Understand-Anything installer (macOS / Linux)
+# OpenRepoCopilot installer (macOS / Linux)
 #
 # Usage:
 #   ./install.sh                       Prompt for platform
@@ -13,13 +13,13 @@
 #   curl -fsSL https://raw.githubusercontent.com/Lum1104/Understand-Anything/main/install.sh | bash -s codex
 #
 # Environment:
-#   UA_REPO_URL  Override clone URL (default: official GitHub repo)
-#   UA_DIR       Override clone destination (default: $HOME/.understand-anything/repo)
+#   OPENREPO_REPO_URL  Override clone URL
+#   OPENREPO_DIR       Override clone destination (default: $HOME/.openrepo-copilot/repo)
 
 set -euo pipefail
 
-REPO_URL="${UA_REPO_URL:-https://github.com/Lum1104/Understand-Anything.git}"
-REPO_DIR="${UA_DIR:-$HOME/.understand-anything/repo}"
+REPO_URL="${OPENREPO_REPO_URL:-${UA_REPO_URL:-https://github.com/Lum1104/OpenRepoCopilot.git}}"
+REPO_DIR="${OPENREPO_DIR:-${UA_DIR:-$HOME/.openrepo-copilot/repo}}"
 PLUGIN_LINK="$HOME/.understand-anything-plugin"
 
 # Platform table — id|skills-target-dir|style
@@ -176,6 +176,26 @@ link_plugin_root() {
   fi
 }
 
+check_requirements() {
+  local missing=()
+  command -v git >/dev/null 2>&1 || missing+=("git")
+  command -v node >/dev/null 2>&1 || missing+=("node")
+  command -v pnpm >/dev/null 2>&1 || missing+=("pnpm")
+  if (( ${#missing[@]} > 0 )); then
+    printf 'Missing required command(s): %s\n' "${missing[*]}" >&2
+    printf 'Install them, then run this installer again.\n' >&2
+    exit 1
+  fi
+}
+
+build_openrepo() {
+  printf -- '-> Installing dependencies and building OpenRepoCopilot packages\n'
+  (cd "$REPO_DIR" && pnpm install --frozen-lockfile 2>/dev/null || pnpm install)
+  (cd "$REPO_DIR/understand-anything-plugin" && pnpm --filter @understand-anything/core build)
+  (cd "$REPO_DIR/understand-anything-plugin" && pnpm --filter @openrepo-copilot/server build)
+  (cd "$REPO_DIR/understand-anything-plugin" && pnpm --filter @understand-anything/dashboard build)
+}
+
 cmd_install() {
   local id="$1"
   local row target style
@@ -183,7 +203,9 @@ cmd_install() {
   target="$(printf '%s\n' "$row" | cut -d'|' -f2)"
   style="$(printf '%s\n' "$row" | cut -d'|' -f3)"
 
+  check_requirements
   clone_or_update
+  build_openrepo
   printf -- '→ Linking skills for %s (%s → %s)\n' "$id" "$style" "$target"
   link_skills "$target" "$style"
   printf -- '→ Linking universal plugin root\n'
@@ -191,6 +213,7 @@ cmd_install() {
 
   printf '\n✓ Installed Understand-Anything for %s\n' "$id"
   printf '  Restart your CLI or IDE to pick up the skills.\n'
+  printf '  OpenRepoCopilot commands: /openrepo and /openrepo-analyze <project-id>.\n'
   if [[ "$id" == "vscode" ]]; then
     printf '\n  Tip: VS Code can also auto-discover the plugin by opening this repo\n'
     printf '       directly (it reads .copilot-plugin/plugin.json), no symlinks needed.\n'
@@ -227,7 +250,7 @@ cmd_update() {
 
 usage() {
   cat <<USAGE
-Understand-Anything installer
+OpenRepoCopilot installer
 
 Usage:
   install.sh [<platform>]            Install for <platform> (or prompt if omitted)
@@ -239,8 +262,10 @@ Supported platforms:
 $(platform_ids | sed 's/^/  - /')
 
 Environment:
-  UA_REPO_URL  Override clone URL (default: official repo)
-  UA_DIR       Override clone destination (default: \$HOME/.understand-anything/repo)
+  OPENREPO_REPO_URL  Override clone URL (default: \$REPO_URL)
+  OPENREPO_DIR       Override clone destination (default: \$HOME/.openrepo-copilot/repo)
+  UA_REPO_URL        Backward-compatible alias for OPENREPO_REPO_URL
+  UA_DIR             Backward-compatible alias for OPENREPO_DIR
 USAGE
 }
 

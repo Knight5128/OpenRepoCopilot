@@ -5,12 +5,15 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
+import { createOpenRepoApiMiddleware } from "../openrepo/src/vite-api.ts";
 
 // Generate a one-time token when the server process starts.
 // This token is printed to the terminal and must be in the URL
 // to fetch knowledge-graph.json or diff-overlay.json.
 const ACCESS_TOKEN = process.env.UNDERSTAND_ACCESS_TOKEN || crypto.randomBytes(16).toString("hex");
 const MAX_SOURCE_FILE_BYTES = 1024 * 1024;
+const OPENREPO_MODE = process.env.VITE_OPENREPO_MODE === "true";
+const NO_AUTO_OPEN = process.env.OPENREPO_NO_OPEN === "true";
 
 function graphFileCandidates(fileName: string): string[] {
   const graphDir = process.env.GRAPH_DIR;
@@ -187,7 +190,7 @@ export default defineConfig({
   server: {
     host: "127.0.0.1",
     port: 5173,
-    open: `/?token=${ACCESS_TOKEN}`,
+    open: NO_AUTO_OPEN ? false : OPENREPO_MODE ? "/" : `/?token=${ACCESS_TOKEN}`,
   },
 
   resolve: {
@@ -235,13 +238,18 @@ export default defineConfig({
     {
       name: "serve-knowledge-graph",
       configureServer(server) {
+        if (OPENREPO_MODE) {
+          server.middlewares.use(createOpenRepoApiMiddleware());
+        }
+
         // Print the access URL once so the developer can open it.
         server.httpServer?.once("listening", () => {
           const address = server.httpServer?.address();
           const port = typeof address === "object" && address ? address.port : 5173;
-          console.log(
-            `\n  🔑  Dashboard URL: http://127.0.0.1:${port}/?token=${ACCESS_TOKEN}\n`
-          );
+          const url = OPENREPO_MODE
+            ? `http://127.0.0.1:${port}/`
+            : `http://127.0.0.1:${port}/?token=${ACCESS_TOKEN}`;
+          console.log(`\n  Dashboard URL: ${url}\n`);
         });
 
         server.middlewares.use((req, res, next) => {
