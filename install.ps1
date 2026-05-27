@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Understand-Anything installer for Windows (PowerShell).
+  OpenRepoCopilot installer for Windows (PowerShell).
 
 .DESCRIPTION
   Clones the repo and creates skill symlinks/junctions for the chosen platform.
@@ -22,8 +22,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-$RepoUrl    = if ($env:UA_REPO_URL) { $env:UA_REPO_URL } else { 'https://github.com/Lum1104/Understand-Anything.git' }
-$RepoDir    = if ($env:UA_DIR)      { $env:UA_DIR }      else { Join-Path $HOME '.understand-anything\repo' }
+$RepoUrl    = if ($env:OPENREPO_REPO_URL) { $env:OPENREPO_REPO_URL } elseif ($env:UA_REPO_URL) { $env:UA_REPO_URL } else { 'https://github.com/Knight5128/OpenRepoCopilot.git' }
+$RepoDir    = if ($env:OPENREPO_DIR)      { $env:OPENREPO_DIR }      elseif ($env:UA_DIR)      { $env:UA_DIR }      else { Join-Path $HOME '.openrepo-copilot\repo' }
 $PluginLink = Join-Path $HOME '.understand-anything-plugin'
 
 # Platform table — Target = skills directory; Style = "per-skill" | "folder"
@@ -43,7 +43,7 @@ $Platforms = [ordered]@{
 
 function Show-Usage {
     @"
-Understand-Anything installer (Windows)
+OpenRepoCopilot installer (Windows)
 
 Usage:
   install.ps1 [<platform>]                Install for <platform> (or prompt if omitted)
@@ -55,8 +55,10 @@ Supported platforms:
 $($Platforms.Keys -join ', ')
 
 Environment:
-  UA_REPO_URL   Override clone URL
-  UA_DIR        Override clone destination (default: %USERPROFILE%\.understand-anything\repo)
+  OPENREPO_REPO_URL  Override clone URL
+  OPENREPO_DIR       Override clone destination (default: %USERPROFILE%\.openrepo-copilot\repo)
+  UA_REPO_URL        Backward-compatible alias for OPENREPO_REPO_URL
+  UA_DIR             Backward-compatible alias for OPENREPO_DIR
 "@
 }
 
@@ -92,6 +94,39 @@ function Clone-Or-Update {
         $parent = Split-Path -Parent $RepoDir
         if (-not (Test-Path $parent)) { New-Item -ItemType Directory -Path $parent | Out-Null }
         git clone $RepoUrl $RepoDir
+    }
+}
+
+function Check-Requirements {
+    $missing = @()
+    foreach ($cmd in @('git', 'node', 'pnpm')) {
+        if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) {
+            $missing += $cmd
+        }
+    }
+    if ($missing.Count -gt 0) {
+        Write-Error "Missing required command(s): $($missing -join ', '). Install them, then run this installer again."
+    }
+}
+
+function Build-OpenRepo {
+    Write-Host '-> Installing dependencies and building OpenRepoCopilot packages'
+    Push-Location $RepoDir
+    try {
+        pnpm install --frozen-lockfile
+        if ($LASTEXITCODE -ne 0) {
+            pnpm install
+            if ($LASTEXITCODE -ne 0) { Write-Error 'pnpm install failed.' }
+        }
+
+        pnpm --filter '@understand-anything/core' build
+        if ($LASTEXITCODE -ne 0) { Write-Error 'Core build failed.' }
+        pnpm --filter '@openrepo-copilot/server' build
+        if ($LASTEXITCODE -ne 0) { Write-Error 'OpenRepo server build failed.' }
+        pnpm --filter '@understand-anything/dashboard' build
+        if ($LASTEXITCODE -ne 0) { Write-Error 'Dashboard build failed.' }
+    } finally {
+        Pop-Location
     }
 }
 
@@ -193,14 +228,17 @@ function Link-Plugin-Root {
 
 function Cmd-Install([string]$Id) {
     $cfg = Resolve-Platform $Id
+    Check-Requirements
     Clone-Or-Update
+    Build-OpenRepo
     Write-Host "→ Linking skills for $Id ($($cfg.Style) → $($cfg.Target))"
     Link-Skills $cfg.Target $cfg.Style
     Write-Host '→ Linking universal plugin root'
     Link-Plugin-Root
 
-    Write-Host "`n✓ Installed Understand-Anything for $Id"
+    Write-Host "`nDone. Installed OpenRepoCopilot for $Id"
     Write-Host '  Restart your CLI or IDE to pick up the skills.'
+    Write-Host '  OpenRepoCopilot commands: /openrepo and /openrepo-analyze <project-id>.'
     if ($Id -eq 'vscode') {
         Write-Host "`n  Tip: VS Code can also auto-discover the plugin by opening this repo"
         Write-Host '       directly (it reads .copilot-plugin/plugin.json), no symlinks needed.'

@@ -6,6 +6,7 @@
   "scripts": {
     "prepare": "pnpm --filter @understand-anything/core build",
     "build": "pnpm -r build",
+    "package:app": "node scripts/package-app.mjs",
     "test": "vitest run",
     "dev:dashboard": "pnpm --filter @understand-anything/dashboard dev",
     "lint": "eslint ."

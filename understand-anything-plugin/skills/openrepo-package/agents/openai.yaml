@@ -1,0 +1,4 @@
+interface:
+  display_name: "OpenRepoCopilot Packaging"
+  short_description: "Build local OpenRepoCopilot app release zips"
+  default_prompt: "Use $openrepo-package to build and validate a local OpenRepoCopilot app package."

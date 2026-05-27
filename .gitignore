@@ -1,4 +1,5 @@
 node_modules
+.pnpm-store/
 dist
 .understand-anything
 *.tsbuildinfo
@@ -7,6 +8,7 @@ dist
 .env.*
 coverage/
 *.log
+release/
 __pycache__/
 .claude/
 .worktrees/

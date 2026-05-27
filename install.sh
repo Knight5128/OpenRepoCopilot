@@ -9,8 +9,8 @@
 #   ./install.sh --help
 #
 # Curl-pipe usage:
-#   curl -fsSL https://raw.githubusercontent.com/Lum1104/Understand-Anything/main/install.sh | bash
-#   curl -fsSL https://raw.githubusercontent.com/Lum1104/Understand-Anything/main/install.sh | bash -s codex
+#   curl -fsSL https://raw.githubusercontent.com/Knight5128/OpenRepoCopilot/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/Knight5128/OpenRepoCopilot/main/install.sh | bash -s codex
 #
 # Environment:
 #   OPENREPO_REPO_URL  Override clone URL
@@ -18,7 +18,7 @@
 
 set -euo pipefail
 
-REPO_URL="${OPENREPO_REPO_URL:-${UA_REPO_URL:-https://github.com/Lum1104/OpenRepoCopilot.git}}"
+REPO_URL="${OPENREPO_REPO_URL:-${UA_REPO_URL:-https://github.com/Knight5128/OpenRepoCopilot.git}}"
 REPO_DIR="${OPENREPO_DIR:-${UA_DIR:-$HOME/.openrepo-copilot/repo}}"
 PLUGIN_LINK="$HOME/.understand-anything-plugin"
 
@@ -211,7 +211,7 @@ cmd_install() {
   printf -- '→ Linking universal plugin root\n'
   link_plugin_root
 
-  printf '\n✓ Installed Understand-Anything for %s\n' "$id"
+  printf '\nDone. Installed OpenRepoCopilot for %s\n' "$id"
   printf '  Restart your CLI or IDE to pick up the skills.\n'
   printf '  OpenRepoCopilot commands: /openrepo and /openrepo-analyze <project-id>.\n'
   if [[ "$id" == "vscode" ]]; then
