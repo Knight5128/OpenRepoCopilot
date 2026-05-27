@@ -18,6 +18,18 @@ export function createOpenRepoApiMiddleware(store = new OpenRepoStore()) {
         return;
       }
 
+      if (req.method === "GET" && pathname === "/api/settings") {
+        sendJson(res, 200, { settings: store.readSettings() });
+        return;
+      }
+
+      if (req.method === "PUT" && pathname === "/api/settings") {
+        const body = await readJson(req);
+        if (!isRecord(body)) throw new Error("Expected JSON settings body.");
+        sendJson(res, 200, { settings: store.writeSettings(body) });
+        return;
+      }
+
       if (req.method === "POST" && pathname === "/api/projects/github") {
         const body = await readJson(req);
         if (!isRecord(body) || typeof body.url !== "string") throw new Error("Expected JSON body with url.");

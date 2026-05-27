@@ -9,6 +9,10 @@ export function projectsDir(home = getOpenRepoHome()): string {
   return path.join(home, "projects");
 }
 
+export function settingsFile(home = getOpenRepoHome()): string {
+  return path.join(home, "settings.json");
+}
+
 export function projectDir(projectId: string, home = getOpenRepoHome()): string {
   return path.join(projectsDir(home), projectId);
 }

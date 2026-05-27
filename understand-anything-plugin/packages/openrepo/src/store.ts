@@ -9,11 +9,12 @@ import {
   projectDir,
   projectFile,
   projectsDir,
+  settingsFile,
   sourceDir,
 } from "./paths.js";
 import { clonePublicGitHubRepo, parseGitHubRepoUrl } from "./github.js";
 import { writeDocumentKnowledgeBase } from "./documents.js";
-import type { OpenRepoJob, OpenRepoProject, UploadedDocument } from "./types.js";
+import type { OpenRepoJob, OpenRepoProject, OpenRepoSettings, UploadedDocument } from "./types.js";
 
 export interface OpenRepoStoreOptions {
   home?: string;
@@ -32,6 +33,21 @@ export class OpenRepoStore {
 
   ensureHome(): void {
     fs.mkdirSync(projectsDir(this.home), { recursive: true });
+  }
+
+  readSettings(): OpenRepoSettings {
+    this.ensureHome();
+    const file = settingsFile(this.home);
+    if (!fs.existsSync(file)) return defaultSettings(this.home);
+    const raw = JSON.parse(fs.readFileSync(file, "utf8")) as Partial<OpenRepoSettings>;
+    return normalizeSettings({ ...defaultSettings(this.home), ...raw }, this.home);
+  }
+
+  writeSettings(input: Partial<OpenRepoSettings>): OpenRepoSettings {
+    const next = normalizeSettings({ ...this.readSettings(), ...input }, this.home);
+    fs.mkdirSync(this.home, { recursive: true });
+    fs.writeFileSync(settingsFile(this.home), `${JSON.stringify(next, null, 2)}\n`, "utf8");
+    return next;
   }
 
   listProjects(): OpenRepoProject[] {
@@ -66,7 +82,10 @@ export class OpenRepoStore {
     const id = this.uniqueProjectId(`${parsed.owner}-${parsed.repo}`);
     const now = new Date().toISOString();
     const dir = projectDir(id, this.home);
-    const sourcePath = sourceDir(id, this.home);
+    const settings = this.readSettings();
+    const sourcePath = settings.cloneRootPath
+      ? path.join(settings.cloneRootPath, id)
+      : sourceDir(id, this.home);
     fs.mkdirSync(sourcePath, { recursive: true });
     fs.mkdirSync(jobsDir(id, this.home), { recursive: true });
 
@@ -264,4 +283,27 @@ function languageFromPath(filePath: string): string {
     yml: "yaml",
   };
   return byExt[ext] ?? "text";
+}
+
+function defaultSettings(home: string): OpenRepoSettings {
+  return {
+    themeMode: "system",
+    agentApiBaseUrl: "http://127.0.0.1:5173/api",
+    agentApiKeyEnv: "OPENREPO_AGENT_API_KEY",
+    cloneRootPath: path.join(home, "clones"),
+    graphExportPath: path.join(home, "exports"),
+  };
+}
+
+function normalizeSettings(input: OpenRepoSettings, home: string): OpenRepoSettings {
+  const themeMode = input.themeMode === "light" || input.themeMode === "dark" || input.themeMode === "system"
+    ? input.themeMode
+    : "system";
+  return {
+    themeMode,
+    agentApiBaseUrl: String(input.agentApiBaseUrl || defaultSettings(home).agentApiBaseUrl).trim(),
+    agentApiKeyEnv: String(input.agentApiKeyEnv || defaultSettings(home).agentApiKeyEnv).trim(),
+    cloneRootPath: path.resolve(String(input.cloneRootPath || defaultSettings(home).cloneRootPath)),
+    graphExportPath: path.resolve(String(input.graphExportPath || defaultSettings(home).graphExportPath)),
+  };
 }

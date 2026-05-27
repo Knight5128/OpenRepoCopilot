@@ -46,3 +46,13 @@ export interface UploadedDocument {
   name: string;
   contentBase64: string;
 }
+
+export type OpenRepoThemeMode = "light" | "dark" | "system";
+
+export interface OpenRepoSettings {
+  themeMode: OpenRepoThemeMode;
+  agentApiBaseUrl: string;
+  agentApiKeyEnv: string;
+  cloneRootPath: string;
+  graphExportPath: string;
+}
