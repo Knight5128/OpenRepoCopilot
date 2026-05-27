@@ -32,5 +32,5 @@ export interface ThemeConfig {
 
 export const DEFAULT_THEME_CONFIG: ThemeConfig = {
   presetId: "dark-gold",
-  accentId: "gold",
+  accentId: "signal",
 };

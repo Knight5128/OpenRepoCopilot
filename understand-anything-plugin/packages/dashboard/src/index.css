@@ -4,24 +4,24 @@
 
 @theme {
   /* Base */
-  --color-root: #0a0a0a;
-  --color-surface: #111111;
-  --color-elevated: #1a1a1a;
-  --color-panel: #141414;
+  --color-root: #0b0f14;
+  --color-surface: #111820;
+  --color-elevated: #17212b;
+  --color-panel: #141d26;
 
   /* Accent */
-  --color-accent: #d4a574;
-  --color-accent-dim: #c9a96e;
-  --color-accent-bright: #e8c49a;
+  --color-accent: #39d98a;
+  --color-accent-dim: #18a863;
+  --color-accent-bright: #73f3b4;
 
   /* Text */
-  --color-text-primary: #f5f0eb;
-  --color-text-secondary: #a39787;
-  --color-text-muted: #6b5f53;
+  --color-text-primary: #e6edf3;
+  --color-text-secondary: #9aa7b4;
+  --color-text-muted: #6f7d8a;
 
   /* Borders */
-  --color-border-subtle: rgba(212, 165, 116, 0.12);
-  --color-border-medium: rgba(212, 165, 116, 0.25);
+  --color-border-subtle: rgba(116, 139, 158, 0.16);
+  --color-border-medium: rgba(57, 217, 138, 0.28);
 
   /* Node types */
   --color-node-file: #4a7c9b;
@@ -39,7 +39,7 @@
   --color-node-resource: #a5b4fc;
 
   /* Knowledge node types */
-  --color-node-article: #d4a574;
+  --color-node-article: #39d98a;
   --color-node-entity: #7ba4c9;
   --color-node-topic: #c9b06c;
   --color-node-claim: #6fb07a;
@@ -47,42 +47,42 @@
 
   /* Diff */
   --color-diff-changed: #e05252;
-  --color-diff-affected: #d4a030;
+  --color-diff-affected: #f2cc60;
   --color-diff-changed-dim: rgba(224, 82, 82, 0.25);
-  --color-diff-affected-dim: rgba(212, 160, 48, 0.25);
+  --color-diff-affected-dim: rgba(242, 204, 96, 0.24);
 
   /* Glass */
-  --glass-bg: rgba(20, 20, 20, 0.8);
-  --glass-bg-heavy: rgba(20, 20, 20, 0.95);
-  --glass-border: rgba(212, 165, 116, 0.1);
-  --glass-border-heavy: rgba(212, 165, 116, 0.15);
+  --glass-bg: rgba(17, 24, 32, 0.82);
+  --glass-bg-heavy: rgba(17, 24, 32, 0.96);
+  --glass-border: rgba(57, 217, 138, 0.12);
+  --glass-border-heavy: rgba(57, 217, 138, 0.2);
 
   /* Scrollbar */
-  --scrollbar-thumb: rgba(212, 165, 116, 0.2);
-  --scrollbar-thumb-hover: rgba(212, 165, 116, 0.35);
+  --scrollbar-thumb: rgba(57, 217, 138, 0.2);
+  --scrollbar-thumb-hover: rgba(57, 217, 138, 0.38);
 
   /* Glow */
-  --glow-accent: rgba(212, 165, 116, 0.15);
-  --glow-accent-strong: rgba(212, 165, 116, 0.4);
-  --glow-accent-pulse: rgba(212, 165, 116, 0.6);
+  --glow-accent: rgba(57, 217, 138, 0.16);
+  --glow-accent-strong: rgba(57, 217, 138, 0.42);
+  --glow-accent-pulse: rgba(57, 217, 138, 0.62);
 
   /* Edges */
-  --color-edge: rgba(212, 165, 116, 0.3);
-  --color-edge-dim: rgba(212, 165, 116, 0.08);
-  --color-edge-dot: rgba(212, 165, 116, 0.15);
+  --color-edge: rgba(57, 217, 138, 0.34);
+  --color-edge-dim: rgba(57, 217, 138, 0.09);
+  --color-edge-dot: rgba(57, 217, 138, 0.18);
 
   /* Accent overlays */
-  --color-accent-overlay-bg: rgba(212, 165, 116, 0.05);
-  --color-accent-overlay-border: rgba(212, 165, 116, 0.25);
+  --color-accent-overlay-bg: rgba(57, 217, 138, 0.07);
+  --color-accent-overlay-border: rgba(57, 217, 138, 0.28);
 
   /* Kbd */
-  --kbd-bg: rgba(212, 165, 116, 0.1);
+  --kbd-bg: rgba(57, 217, 138, 0.1);
 
   /* Typography */
-  --font-serif: 'DM Serif Display', Georgia, serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
-  --font-sans: 'Inter', system-ui, sans-serif;
-  --font-heading: var(--font-serif);
+  --font-serif: 'Sora', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', monospace;
+  --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-heading: 'Sora', var(--font-sans);
 }
 
 .font-heading { font-family: var(--font-heading); }

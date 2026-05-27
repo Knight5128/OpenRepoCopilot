@@ -80,7 +80,7 @@ function ContainerNodeComponent({ data, width, height }: NodeProps<ContainerFlow
                 marginLeft: 6,
                 fontSize: 10,
                 background: "rgba(212,165,116,0.2)",
-                color: "var(--color-gold, #d4a574)",
+                color: "var(--color-accent)",
                 padding: "1px 6px",
                 borderRadius: 8,
               }}
@@ -89,7 +89,7 @@ function ContainerNodeComponent({ data, width, height }: NodeProps<ContainerFlow
             </span>
           )}
         </span>
-        <span style={{ color: "#a39787", fontSize: 11 }}>{data.childCount}</span>
+        <span style={{ color: "var(--color-text-secondary)", fontSize: 11 }}>{data.childCount}</span>
       </div>
     </div>
   );

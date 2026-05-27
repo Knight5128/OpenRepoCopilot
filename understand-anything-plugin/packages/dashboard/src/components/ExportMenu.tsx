@@ -94,7 +94,7 @@ export default function ExportMenu() {
       const h = node.height ?? 80;
 
       svgContent += `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="#1a1a1a" stroke="rgba(212,165,116,0.2)" stroke-width="1"/>`;
-      svgContent += `<text x="${x + w / 2}" y="${y + h / 2}" fill="#d4a574" text-anchor="middle" dominant-baseline="middle" font-size="12">${escapeXml(String(node.data.label ?? node.id))}</text>`;
+      svgContent += `<text x="${x + w / 2}" y="${y + h / 2}" fill="#39d98a" text-anchor="middle" dominant-baseline="middle" font-size="12">${escapeXml(String(node.data.label ?? node.id))}</text>`;
     });
 
     svgContent += `</svg>`;

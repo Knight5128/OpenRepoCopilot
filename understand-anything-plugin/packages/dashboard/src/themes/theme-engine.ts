@@ -12,8 +12,8 @@ function deriveFromAccent(accentHex: string, isDark: boolean): Record<string, st
   return {
     "color-border-subtle": `rgba(${rgb}, ${isDark ? 0.12 : 0.1})`,
     "color-border-medium": `rgba(${rgb}, ${isDark ? 0.25 : 0.18})`,
-    "glass-bg": isDark ? "rgba(20, 20, 20, 0.8)" : "rgba(255, 255, 255, 0.8)",
-    "glass-bg-heavy": isDark ? "rgba(20, 20, 20, 0.95)" : "rgba(255, 255, 255, 0.95)",
+    "glass-bg": isDark ? "rgba(17, 24, 32, 0.82)" : "rgba(255, 255, 255, 0.82)",
+    "glass-bg-heavy": isDark ? "rgba(17, 24, 32, 0.96)" : "rgba(255, 255, 255, 0.96)",
     "glass-border": `rgba(${rgb}, ${isDark ? 0.1 : 0.08})`,
     "glass-border-heavy": `rgba(${rgb}, ${isDark ? 0.15 : 0.12})`,
     "scrollbar-thumb": `rgba(${rgb}, 0.2)`,

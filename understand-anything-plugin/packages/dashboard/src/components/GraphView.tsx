@@ -275,7 +275,7 @@ function useOverviewGraph() {
         stroke: "rgba(212,165,116,0.4)",
         strokeWidth: Math.min(1 + Math.log2(agg.count + 1), 5),
       },
-      labelStyle: { fill: "#a39787", fontSize: 11, fontWeight: 600 },
+      labelStyle: { fill: "var(--color-text-secondary)", fontSize: 11, fontWeight: 600 },
     }));
 
     const dims = new Map<string, { width: number; height: number }>();
@@ -578,7 +578,7 @@ function useLayerDetailTopology(): LayerDetailTopology & {
         label: String(agg.count),
         style: baseStyle,
         labelStyle: {
-          fill: diffMode ? "rgba(163,151,135,0.3)" : "#a39787",
+          fill: diffMode ? "rgba(154, 167, 180, 0.3)" : "var(--color-text-secondary)",
           fontSize: 11,
         },
       };
@@ -1228,7 +1228,7 @@ function useLayerDetailGraph() {
           target: realTgt,
           label: m.type,
           style: { stroke: "rgba(212,165,116,0.5)", strokeWidth: 1.5 },
-          labelStyle: { fill: "#a39787", fontSize: 10 },
+          labelStyle: { fill: "var(--color-text-secondary)", fontSize: 10 },
         });
       }
     }
@@ -1246,7 +1246,7 @@ function useLayerDetailGraph() {
         target: e.target,
         label: e.type,
         style: { stroke: "rgba(212,165,116,0.5)", strokeWidth: 1.5 },
-        labelStyle: { fill: "#a39787", fontSize: 10 },
+        labelStyle: { fill: "var(--color-text-secondary)", fontSize: 10 },
       });
     }
     return out;
@@ -1271,7 +1271,7 @@ function useLayerDetailGraph() {
       if ((edge.style as Record<string, unknown>)?.strokeDasharray) return edge;
 
       if (isSelectedEdge) {
-        return { ...edge, animated: true, style: { stroke: "rgba(212,165,116,0.8)", strokeWidth: 2.5 }, labelStyle: { fill: "#d4a574", fontSize: 11, fontWeight: 600 } };
+        return { ...edge, animated: true, style: { stroke: "rgba(57,217,138,0.85)", strokeWidth: 2.5 }, labelStyle: { fill: "var(--color-accent)", fontSize: 11, fontWeight: 600 } };
       }
       // Fade unrelated edges
       return { ...edge, animated: false, style: { stroke: "rgba(212,165,116,0.08)", strokeWidth: 1 }, labelStyle: { fill: "rgba(163,151,135,0.2)", fontSize: 10 } };
@@ -1563,7 +1563,7 @@ function GraphViewInner() {
             zIndex: 10,
           }}
         >
-          <span style={{ color: "#d4a574", fontSize: 14 }}>
+          <span style={{ color: "var(--color-accent)", fontSize: 14 }}>
             {tourFitPending ? "Locating tour highlight…" : "Computing layout…"}
           </span>
         </div>

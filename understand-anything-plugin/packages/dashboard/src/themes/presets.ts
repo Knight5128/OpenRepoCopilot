@@ -1,6 +1,7 @@
 import type { AccentSwatch, ThemePreset } from "./types.ts";
 
 const DARK_ACCENT_SWATCHES: AccentSwatch[] = [
+  { id: "signal", name: "Signal", accent: "#39d98a", accentDim: "#18a863", accentBright: "#73f3b4" },
   { id: "gold", name: "Gold", accent: "#d4a574", accentDim: "#c9a96e", accentBright: "#e8c49a" },
   { id: "ocean", name: "Ocean", accent: "#5ba4cf", accentDim: "#4e93ba", accentBright: "#7abce0" },
   { id: "emerald", name: "Emerald", accent: "#5ea67a", accentDim: "#4e9468", accentBright: "#78c492" },
@@ -12,6 +13,7 @@ const DARK_ACCENT_SWATCHES: AccentSwatch[] = [
 ];
 
 const LIGHT_ACCENT_SWATCHES: AccentSwatch[] = [
+  { id: "signal", name: "Signal", accent: "#0f9f5f", accentDim: "#0b7f4c", accentBright: "#18c878" },
   { id: "indigo", name: "Indigo", accent: "#4a6fa5", accentDim: "#3d5f8f", accentBright: "#6088bf" },
   { id: "ocean", name: "Ocean", accent: "#3a8ab5", accentDim: "#2e7aa0", accentBright: "#55a0cc" },
   { id: "emerald", name: "Emerald", accent: "#3a8a5c", accentDim: "#2e7a4e", accentBright: "#55a878" },
@@ -25,18 +27,18 @@ const LIGHT_ACCENT_SWATCHES: AccentSwatch[] = [
 export const PRESETS: ThemePreset[] = [
   {
     id: "dark-gold",
-    name: "Dark Gold",
+    name: "Graphite",
     isDark: true,
-    defaultAccentId: "gold",
+    defaultAccentId: "signal",
     accentSwatches: DARK_ACCENT_SWATCHES,
     colors: {
-      root: "#0a0a0a",
-      surface: "#111111",
-      elevated: "#1a1a1a",
-      panel: "#141414",
-      "text-primary": "#f5f0eb",
-      "text-secondary": "#a39787",
-      "text-muted": "#6b5f53",
+      root: "#0b0f14",
+      surface: "#111820",
+      elevated: "#17212b",
+      panel: "#141d26",
+      "text-primary": "#e6edf3",
+      "text-secondary": "#9aa7b4",
+      "text-muted": "#6f7d8a",
       "node-file": "#4a7c9b",
       "node-function": "#5a9e6f",
       "node-class": "#8b6fb0",
