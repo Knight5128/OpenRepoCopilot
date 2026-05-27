@@ -1,12 +1,12 @@
 ---
 name: openrepo-analyze
-description: Run an OpenRepoCopilot queued analysis job by delegating to the existing Understand-Anything analysis flow
+description: Run an OpenRepoCopilot queued analysis job with the repository analysis flow
 argument-hint: <project-id>
 ---
 
 # /openrepo-analyze
 
-Consume the next queued OpenRepoCopilot analysis job for a project and run the existing Understand-Anything analysis flow.
+Consume the next queued OpenRepoCopilot analysis job for a project and run the repository or document analysis flow.
 
 ## Instructions
 
@@ -33,9 +33,9 @@ Consume the next queued OpenRepoCopilot analysis job for a project and run the e
    cd <plugin-root> && node packages/openrepo/dist/cli.js job-start <project-id>
    ```
 
-5. If the returned project type is `github_repo`, change to `project.sourcePath` and run the existing `/understand` workflow for that repository. If the graph is written under `project.sourcePath/.understand-anything`, copy that `.understand-anything` directory into the OpenRepo project directory shown by `project.graphPath`.
+5. If the returned project type is `github_repo`, change to `project.sourcePath` and run the repository graph workflow for that repository. If the graph is written under `project.sourcePath/.understand-anything`, copy that `.understand-anything` directory into the OpenRepo project directory shown by `project.graphPath`.
 
-6. If the returned project type is `document_kb`, run the existing `/understand-knowledge <project.sourcePath>` workflow. Ensure the resulting `knowledge-graph.json` is placed at the returned `project.graphPath`.
+6. If the returned project type is `document_kb`, run the document knowledge-base workflow for `project.sourcePath`. Ensure the resulting `knowledge-graph.json` is placed at the returned `project.graphPath`.
 
 7. When the graph exists at `project.graphPath`, mark the job complete:
 

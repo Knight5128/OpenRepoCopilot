@@ -121,7 +121,7 @@ export default function OpenRepoWorkbench() {
             <h1 className="font-heading text-3xl text-text-primary sm:text-4xl">Repository and knowledge graph workbench</h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-text-secondary">
               Create one local project per public repository or document knowledge base, queue analysis, then open the
-              generated Understand-Anything graph in the same workspace.
+              generated OpenRepoCopilot graph in the same workspace.
             </p>
           </div>
           <button

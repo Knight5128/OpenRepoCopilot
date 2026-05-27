@@ -347,7 +347,7 @@ export default defineConfig({
             } catch (err) {
               // If we cannot parse or sanitise the file, refuse to serve it
               // rather than accidentally leaking raw content.
-              console.error("[understand-anything] Failed to sanitise graph file:", err);
+              console.error("[openrepo-copilot] Failed to sanitise graph file:", err);
               res.statusCode = 500;
               res.setHeader("Content-Type", "application/json");
               res.end(JSON.stringify({ error: "Failed to read graph file" }));

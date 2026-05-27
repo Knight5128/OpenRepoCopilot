@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "project": {
-    "name": "understand-anything",
+    "name": "OpenRepoCopilot",
     "languages": [
       "typescript",
       "css"

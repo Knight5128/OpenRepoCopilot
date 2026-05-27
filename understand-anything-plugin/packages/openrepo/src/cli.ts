@@ -74,12 +74,12 @@ function analysisInstructions(type: string, sourcePath: string, jobId: string): 
   if (type === "github_repo") {
     return [
       `cd "${sourcePath}"`,
-      "Run the existing /understand analysis flow for this project.",
+      "Run the repository graph analysis flow for this project.",
       `After .understand-anything/knowledge-graph.json exists, copy .understand-anything into the OpenRepo project directory if the analyzer wrote it under source, then run: openrepo job-complete ${jobId}`,
     ];
   }
   return [
-    `Run /understand-knowledge "${sourcePath}" using the existing knowledge-base flow.`,
+    `Run the document knowledge-base analysis flow for "${sourcePath}".`,
     `After knowledge-graph.json is written, place it under the OpenRepo project .understand-anything directory, then run: openrepo job-complete ${jobId}`,
   ];
 }

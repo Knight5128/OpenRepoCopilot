@@ -1,14 +1,14 @@
 {
-  "name": "understand-anything",
+  "name": "openrepo-copilot",
   "metadata": {
-    "description": "LLM-powered codebase analysis producing interactive knowledge graphs, guided tours, and deep-dive explanations"
+    "description": "OpenRepoCopilot local repository and knowledge graph workbench"
   },
   "owner": {
     "name": "Lum1104"
   },
   "plugins": [
     {
-      "name": "understand-anything",
+      "name": "openrepo-copilot",
       "source": "./understand-anything-plugin"
     }
   ]
