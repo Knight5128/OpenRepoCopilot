@@ -68,6 +68,11 @@ export function createOpenRepoApiMiddleware(store = new OpenRepoStore()) {
           sendJson(res, 200, { project: store.readProject(projectId), jobs: store.listJobs(projectId) });
           return;
         }
+        if (req.method === "DELETE" && !action) {
+          store.deleteProject(projectId);
+          sendJson(res, 200, { ok: true });
+          return;
+        }
         if (req.method === "POST" && action === "analysis-jobs") {
           const job = store.createAnalysisJob(projectId);
           if (store.readSettings().agent.autoRunJobs) worker.start(projectId);

@@ -133,6 +133,20 @@ describe("OpenRepoStore", () => {
     expect(() => store.readJob(first.id)).toThrow(/Job not found/);
   });
 
+  it("deletes projects without active analysis jobs", async () => {
+    const store = new OpenRepoStore({ home: tempHome() });
+    const project = await store.createGithubProject("https://github.com/owner/repo", { clone: false });
+    const job = store.createAnalysisJob(project.id);
+
+    expect(() => store.deleteProject(project.id)).toThrow(/queued or running/);
+
+    store.deleteJob(job.id);
+    store.deleteProject(project.id);
+
+    expect(store.listProjects()).toHaveLength(0);
+    expect(() => store.readProject(project.id)).toThrow(/Project not found/);
+  });
+
   it("creates a document knowledge-base project", () => {
     const store = new OpenRepoStore({ home: tempHome() });
     const project = store.createDocumentProject("Docs", [

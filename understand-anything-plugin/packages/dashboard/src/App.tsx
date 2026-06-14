@@ -150,7 +150,17 @@ function Dashboard({ accessToken, projectId }: { accessToken: string; projectId?
 
   useEffect(() => {
     fetch(dataUrl("knowledge-graph.json", accessToken, projectId))
-      .then((res) => res.json())
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) {
+          const message =
+            typeof data?.error === "string"
+              ? data.error
+              : `Knowledge graph request failed (${res.status}).`;
+          throw new Error(message);
+        }
+        return data;
+      })
       .then((data: unknown) => {
         const result = validateGraph(data);
         if (result.success && result.data) {

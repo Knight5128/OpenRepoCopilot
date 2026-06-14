@@ -134,6 +134,7 @@ export default function OpenRepoWorkbench() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [noticeVisible, setNoticeVisible] = useState(false);
 
   const refresh = useCallback(async () => {
     const [projectsData, settingsData] = await Promise.all([
@@ -151,6 +152,20 @@ export default function OpenRepoWorkbench() {
     setDetails(Object.fromEntries(entries));
   }, []);
 
+  async function refreshProjects() {
+    setBusy("refresh");
+    setError(null);
+    setNotice(null);
+    try {
+      await refresh();
+      setNotice("Project list refreshed.");
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   useEffect(() => {
     refresh().catch((err: unknown) => setError(errorMessage(err)));
   }, [refresh]);
@@ -158,6 +173,22 @@ export default function OpenRepoWorkbench() {
   useEffect(() => {
     applyTheme(settings.appearance.themeMode);
   }, [settings.appearance.themeMode]);
+
+  useEffect(() => {
+    if (!notice) {
+      setNoticeVisible(false);
+      return;
+    }
+
+    setNoticeVisible(true);
+    const fadeTimer = window.setTimeout(() => setNoticeVisible(false), 4000);
+    const clearTimer = window.setTimeout(() => setNotice(null), 4300);
+
+    return () => {
+      window.clearTimeout(fadeTimer);
+      window.clearTimeout(clearTimer);
+    };
+  }, [notice]);
 
   useEffect(() => {
     if (!Object.values(details).some(({ jobs }) => jobs.some((job) => job.status === "queued" || job.status === "in_progress"))) {
@@ -286,6 +317,28 @@ export default function OpenRepoWorkbench() {
     }
   }
 
+  async function deleteProject(project: OpenRepoProject) {
+    const confirmed = window.confirm(
+      `Delete "${project.name}" from OpenRepoCopilot?\n\nThis removes its project record, analysis jobs, and generated graph. Source files stored outside the OpenRepoCopilot project directory will be kept.`,
+    );
+    if (!confirmed) return;
+
+    setBusy(`delete-project:${project.id}`);
+    setError(null);
+    setNotice(null);
+    try {
+      await api(`/api/projects/${encodeURIComponent(project.id)}`, { method: "DELETE" });
+      setSelectedProjectId(null);
+      setView("overview");
+      await refresh();
+      setNotice("Project deleted.");
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function reorderAnalysisJobs(activeJobId: string, targetJobId: string) {
     if (activeJobId === targetJobId) return;
     const activeIndex = globalJobs.findIndex((job) => job.id === activeJobId);
@@ -379,14 +432,15 @@ export default function OpenRepoWorkbench() {
     <main className="min-h-screen bg-root text-text-primary noise-overlay">
       <div className="flex min-h-screen">
         <aside className={`${sidebarCollapsed ? "w-[76px]" : "w-[320px]"} flex shrink-0 flex-col border-r border-border-subtle bg-surface/95 transition-all duration-200`}>
-          <div className="flex items-center gap-3 border-b border-border-subtle px-4 py-4">
+          <div className={`flex items-center border-b border-border-subtle py-4 ${sidebarCollapsed ? "justify-center px-2" : "gap-3 px-4"}`}>
             <button
               type="button"
               onClick={() => setSidebarCollapsed((value) => !value)}
               className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-border-medium bg-elevated font-mono text-sm text-text-secondary transition hover:text-text-primary"
               title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
-              {sidebarCollapsed ? ">" : "<"}
+              <ChevronIcon direction={sidebarCollapsed ? "right" : "left"} />
             </button>
             {!sidebarCollapsed && (
               <button type="button" onClick={() => setView("overview")} className="min-w-0 text-left">
@@ -396,14 +450,17 @@ export default function OpenRepoWorkbench() {
             )}
           </div>
 
-          <div className="border-b border-border-subtle p-3">
+          <div className={`border-b border-border-subtle p-3 ${sidebarCollapsed ? "flex justify-center" : ""}`}>
             <button
               type="button"
               onClick={showCreate}
-              className="flex w-full items-center justify-center gap-2 rounded-md bg-accent px-3 py-2.5 text-sm font-bold text-black transition hover:bg-accent-bright"
+              className={`flex items-center justify-center rounded-md bg-accent text-sm font-bold text-black transition hover:bg-accent-bright ${
+                sidebarCollapsed ? "h-10 w-10 p-0" : "w-full gap-2 px-3 py-2.5"
+              }`}
+              aria-label="Create new project"
               title="创建新项目"
             >
-              <span className="font-mono text-base">+</span>
+              <PlusIcon />
               {!sidebarCollapsed && <span>创建新项目</span>}
             </button>
           </div>
@@ -414,10 +471,11 @@ export default function OpenRepoWorkbench() {
                 <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted">Projects</p>
                 <button
                   type="button"
-                  onClick={() => refresh().catch((err: unknown) => setError(errorMessage(err)))}
-                  className="rounded border border-border-subtle px-2 py-1 text-[11px] text-text-muted transition hover:text-text-primary"
+                  onClick={refreshProjects}
+                  disabled={busy === "refresh"}
+                  className="rounded border border-border-subtle px-2 py-1 text-[11px] text-text-muted transition hover:text-text-primary disabled:cursor-wait disabled:opacity-60"
                 >
-                  Refresh
+                  {busy === "refresh" ? "Refreshing..." : "Refresh"}
                 </button>
               </div>
             )}
@@ -432,14 +490,16 @@ export default function OpenRepoWorkbench() {
                     key={project.id}
                     type="button"
                     onClick={() => showProject(project.id)}
-                    className={`w-full rounded-md border px-3 py-3 text-left transition ${
+                    className={`rounded-md border text-left transition ${
+                      sidebarCollapsed ? "mx-auto block h-10 w-10 p-0" : "w-full px-3 py-3"
+                    } ${
                       selectedProjectId === project.id && view === "project"
                         ? "border-accent/60 bg-accent/10"
                         : "border-border-subtle bg-root/55 hover:border-border-medium"
                     }`}
                     title={project.name}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className={`flex items-center ${sidebarCollapsed ? "justify-center" : "gap-3"}`}>
                       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-border-medium bg-elevated font-mono text-xs text-accent">
                         {project.type === "github_repo" ? "GH" : "KB"}
                       </span>
@@ -463,7 +523,7 @@ export default function OpenRepoWorkbench() {
             </div>
           </div>
 
-          <div className="border-t border-border-subtle p-3">
+          <div className={`border-t border-border-subtle p-3 ${sidebarCollapsed ? "flex justify-center" : ""}`}>
             {!sidebarCollapsed ? (
               <div className="space-y-2">
                 <div className="grid grid-cols-3 rounded-md bg-root p-1">
@@ -472,39 +532,44 @@ export default function OpenRepoWorkbench() {
                       key={mode}
                       type="button"
                       onClick={() => updateThemeMode(mode)}
-                      className={`rounded px-2 py-1.5 text-xs font-semibold capitalize transition ${
+                      className={`grid h-9 place-items-center rounded transition ${
                         settings.appearance.themeMode === mode ? "bg-accent text-black" : "text-text-muted hover:text-text-primary"
                       }`}
+                      title={`${themeModeLabel(mode)} theme`}
+                      aria-label={`Use ${themeModeLabel(mode)} theme`}
                     >
-                      {mode}
+                      <ThemeIcon mode={mode} />
                     </button>
                   ))}
                 </div>
                 <button
                   type="button"
-                  onClick={() => setView("settings")}
-                  className="w-full rounded-md border border-border-medium bg-elevated px-3 py-2 text-sm font-semibold text-text-secondary transition hover:text-text-primary"
+                  onClick={() => setView((current) => current === "settings" ? "overview" : "settings")}
+                  className="flex w-full items-center justify-center gap-2 rounded-md border border-border-medium bg-elevated px-3 py-2 text-sm font-semibold text-text-secondary transition hover:border-accent/40 hover:text-text-primary"
                 >
-                  全局设置
+                  <SettingsIcon />
+                  {view === "settings" ? "返回工作台" : "全局设置"}
                 </button>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="flex w-10 flex-col items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => updateThemeMode(settings.appearance.themeMode === "dark" ? "light" : "dark")}
-                  className="grid h-10 w-full place-items-center rounded-md border border-border-medium bg-elevated font-mono text-xs text-text-secondary"
-                  title="Toggle theme"
+                  onClick={() => updateThemeMode(nextThemeMode(settings.appearance.themeMode))}
+                  className="grid h-10 w-10 place-items-center rounded-md border border-border-medium bg-elevated text-text-secondary transition hover:border-accent/40 hover:text-text-primary"
+                  title={`Theme: ${themeModeLabel(settings.appearance.themeMode)}. Click to switch.`}
+                  aria-label={`Current theme is ${themeModeLabel(settings.appearance.themeMode)}. Switch theme.`}
                 >
-                  {settings.appearance.themeMode === "light" ? "L" : settings.appearance.themeMode === "dark" ? "D" : "S"}
+                  <ThemeIcon mode={settings.appearance.themeMode} />
                 </button>
                 <button
                   type="button"
-                  onClick={() => setView("settings")}
-                  className="grid h-10 w-full place-items-center rounded-md border border-border-medium bg-elevated font-mono text-xs text-text-secondary"
-                  title="Global settings"
+                  onClick={() => setView((current) => current === "settings" ? "overview" : "settings")}
+                  className="grid h-10 w-10 place-items-center rounded-md border border-border-medium bg-elevated text-text-secondary transition hover:border-accent/40 hover:text-text-primary"
+                  title={view === "settings" ? "Back to workbench" : "Global settings"}
+                  aria-label={view === "settings" ? "Back to workbench" : "Global settings"}
                 >
-                  ...
+                  <SettingsIcon />
                 </button>
               </div>
             )}
@@ -516,12 +581,26 @@ export default function OpenRepoWorkbench() {
             {(error || notice) && (
               <div className="mb-5 space-y-2">
                 {error && <div className="rounded-md border border-red-500/40 bg-red-950/40 px-4 py-3 text-sm text-red-100">{error}</div>}
-                {notice && <div className="rounded-md border border-emerald-500/30 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-100">{notice}</div>}
+                {notice && (
+                  <div
+                    className={`rounded-md border border-emerald-500/30 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-100 transition-opacity duration-300 ${
+                      noticeVisible ? "opacity-100" : "opacity-0"
+                    }`}
+                    role="status"
+                  >
+                    {notice}
+                  </div>
+                )}
               </div>
             )}
 
             {view === "overview" && (
-              <OverviewPanel projectCount={projects.length} settings={settings} onCreate={showCreate} />
+              <OverviewPanel
+                projectCount={projects.length}
+                settings={settings}
+                onCreate={showCreate}
+                onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
+              />
             )}
 
             {view === "create" && (
@@ -547,6 +626,7 @@ export default function OpenRepoWorkbench() {
                 globalJobs={globalJobs}
                 jobs={selectedJobs}
                 project={selectedProject}
+                onDeleteProject={() => deleteProject(selectedProject)}
                 onDeleteJob={deleteAnalysisJob}
                 onQueue={() => queueAnalysis(selectedProject.id)}
                 onReorderJobs={reorderAnalysisJobs}
@@ -560,6 +640,7 @@ export default function OpenRepoWorkbench() {
                 providerPresets={providerPresets}
                 draft={settingsDraft}
                 testing={busy === "agent-test"}
+                onBack={() => setView("overview")}
                 onChange={setSettingsDraft}
                 onTestAgent={testAgentConnection}
                 onSubmit={saveSettings}
@@ -576,40 +657,265 @@ function OverviewPanel({
   projectCount,
   settings,
   onCreate,
+  onToggleSidebar,
 }: {
   projectCount: number;
   settings: OpenRepoSettings;
   onCreate: () => void;
+  onToggleSidebar: () => void;
 }) {
   return (
-    <div className="flex min-h-[calc(100vh-3rem)] items-center">
-      <div className="max-w-3xl">
-        <p className="mb-3 font-mono text-xs uppercase tracking-[0.22em] text-accent">OpenRepoCopilot</p>
-        <h1 className="font-heading text-4xl leading-tight text-text-primary sm:text-5xl">
+    <div className="flex min-h-[calc(100vh-3rem)] items-center py-8">
+      <div className="w-full">
+        <p className="mb-4 font-mono text-xs uppercase tracking-[0.24em] text-accent">OpenRepoCopilot</p>
+        <h1 className="font-heading text-4xl font-semibold leading-[1.12] text-text-primary sm:text-5xl xl:whitespace-nowrap">
           Repository and knowledge graph workbench
         </h1>
-        <p className="mt-5 max-w-2xl text-base leading-7 text-text-secondary">
-          Create one local project per public repository or document knowledge base, queue analysis, then open the
-          generated OpenRepoCopilot graph in the same workspace.
-        </p>
-        <div className="mt-8 grid gap-3 sm:grid-cols-3">
-          <Metric label="Projects" value={String(projectCount)} />
-          <Metric label="Theme" value={settings.appearance.themeMode} />
-          <Metric label="Storage" value="Local" />
-        </div>
-        <div className="mt-8 flex flex-wrap gap-3">
-          <button
-            type="button"
-            onClick={onCreate}
-            className="rounded-md bg-accent px-5 py-3 text-sm font-bold text-black transition hover:bg-accent-bright"
-          >
-            创建新项目
-          </button>
-          <span className="rounded-md border border-border-medium bg-elevated px-5 py-3 text-sm font-semibold text-text-secondary">
-            Select a project from the sidebar
-          </span>
+
+        <div className="mt-7 grid items-center gap-10 2xl:grid-cols-[minmax(720px,1.08fr)_minmax(430px,0.82fr)]">
+          <div className="max-w-4xl">
+          <p className="mt-5 font-heading text-2xl font-semibold leading-snug text-accent sm:text-3xl">
+            让任何陌生代码库，一看就懂
+          </p>
+          <p className="mt-5 max-w-2xl text-base leading-7 text-text-secondary">
+            从代码结构、模块关系到关键概念，在本地完成仓库分析并生成可探索的知识图谱，
+            帮助你更快理解、检索和协作。
+          </p>
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            <OverviewStatusCard
+              accent="emerald"
+              badge={projectCount > 0 ? "Ready" : "Waiting"}
+              description={projectCount > 0 ? "本地项目已就绪，可开始知识图谱探索" : "创建本地项目后即可开始分析"}
+              icon="projects"
+              title="项目总览"
+              value={`${projectCount} 个仓库`}
+            />
+            <OverviewStatusCard
+              accent="blue"
+              badge={themeModeLabel(settings.appearance.themeMode)}
+              description={themeModeDescription(settings.appearance.themeMode)}
+              icon="theme"
+              themeMode={settings.appearance.themeMode}
+              title="当前主题"
+              value={themeModeDisplayValue(settings.appearance.themeMode)}
+            />
+            <OverviewStatusCard
+              accent="cyan"
+              badge="Local"
+              description="代码解析与图谱数据保存在本地环境"
+              icon="storage"
+              title="数据存储"
+              value="本地优先"
+            />
+          </div>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={onCreate}
+              className="flex items-center gap-2 rounded-md bg-accent px-5 py-3 text-sm font-bold text-black transition hover:bg-accent-bright"
+            >
+              <PlusIcon />
+              创建新项目
+            </button>
+            <button
+              type="button"
+              onClick={onToggleSidebar}
+              className="flex items-center gap-2 rounded-md border border-border-medium bg-elevated px-5 py-3 text-sm font-semibold text-text-secondary transition hover:border-accent hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+              aria-label="切换侧边栏"
+            >
+              <ChevronIcon direction="right" />
+              从左侧选择项目开始探索
+            </button>
+          </div>
+          </div>
+          <KnowledgeGraphIllustration />
         </div>
       </div>
+    </div>
+  );
+}
+
+function OverviewStatusCard({
+  accent,
+  badge,
+  description,
+  icon,
+  themeMode,
+  title,
+  value,
+}: {
+  accent: "emerald" | "blue" | "cyan";
+  badge: string;
+  description: string;
+  icon: "projects" | "theme" | "storage";
+  themeMode?: ThemeMode;
+  title: string;
+  value: string;
+}) {
+  const styles = {
+    emerald: {
+      border: "border-emerald-500/20",
+      icon: "bg-emerald-500/10 text-emerald-500",
+      badge: "bg-emerald-500/10 text-emerald-500",
+    },
+    blue: {
+      border: "border-blue-500/20",
+      icon: "bg-blue-500/10 text-blue-500",
+      badge: "bg-blue-500/10 text-blue-500",
+    },
+    cyan: {
+      border: "border-cyan-500/20",
+      icon: "bg-cyan-500/10 text-cyan-500",
+      badge: "bg-cyan-500/10 text-cyan-500",
+    },
+  }[accent];
+
+  return (
+    <div className={`flex min-h-52 flex-col rounded-2xl border bg-surface/80 p-5 shadow-lg shadow-black/[0.03] backdrop-blur-sm ${styles.border}`}>
+      <div className="flex items-center gap-4">
+        <span className={`grid h-14 w-14 shrink-0 place-items-center rounded-xl ${styles.icon}`}>
+          <OverviewCardIcon type={icon} themeMode={themeMode} />
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-text-muted">{title}</p>
+          <p className="mt-1 font-heading text-xl font-semibold leading-snug text-text-primary">{value}</p>
+        </div>
+      </div>
+      <p className="mt-5 min-h-12 text-sm leading-6 text-text-secondary">{description}</p>
+      <div className="mt-auto pt-4">
+        <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${styles.badge}`}>
+          {icon === "projects" && projectStatusIcon(badge)}
+          {icon === "theme" && <ThemeIcon mode={badge.toLowerCase() as ThemeMode} />}
+          {icon === "storage" && <ShieldIcon />}
+          {badge}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function OverviewCardIcon({ type, themeMode }: { type: "projects" | "theme" | "storage"; themeMode?: ThemeMode }) {
+  if (type === "projects") {
+    return (
+      <svg aria-hidden="true" className="h-7 w-7" fill="none" viewBox="0 0 24 24">
+        <ellipse cx="12" cy="5" rx="6.5" ry="2.5" stroke="currentColor" strokeWidth="1.8" />
+        <path d="M5.5 5v5c0 1.38 2.91 2.5 6.5 2.5s6.5-1.12 6.5-2.5V5M5.5 10v5c0 1.38 2.91 2.5 6.5 2.5s6.5-1.12 6.5-2.5v-5M5.5 15v4c0 1.38 2.91 2.5 6.5 2.5s6.5-1.12 6.5-2.5v-4" stroke="currentColor" strokeWidth="1.8" />
+      </svg>
+    );
+  }
+
+  if (type === "theme") {
+    return <span className="[&>svg]:h-7 [&>svg]:w-7"><ThemeIcon mode={themeMode ?? "system"} /></span>;
+  }
+
+  return (
+    <svg aria-hidden="true" className="h-7 w-7" fill="none" viewBox="0 0 24 24">
+      <rect x="3" y="4" width="18" height="13" rx="2" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M8 21h8M12 17v4" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function projectStatusIcon(status: string) {
+  return status === "Ready" ? (
+    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+      <path d="m5 12 4 4L19 6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" />
+    </svg>
+  ) : (
+    <span aria-hidden="true" className="h-2 w-2 rounded-full bg-current opacity-70" />
+  );
+}
+
+function ShieldIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+      <path d="M12 3 5.5 5.5v5.2c0 4.1 2.7 7.9 6.5 9.3 3.8-1.4 6.5-5.2 6.5-9.3V5.5L12 3Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" />
+      <path d="m9 11.5 2 2 4-4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function KnowledgeGraphIllustration() {
+  return (
+    <div className="relative hidden xl:block" aria-hidden="true">
+      <div className="absolute inset-[12%] rounded-full bg-accent/10 blur-3xl" />
+      <svg
+        className="relative mx-auto w-full max-w-[570px] text-text-secondary opacity-90"
+        fill="none"
+        viewBox="0 0 580 500"
+      >
+        <defs>
+          <linearGradient id="overview-card" x1="0" x2="1" y1="0" y2="1">
+            <stop stopColor="var(--color-surface)" stopOpacity="0.96" />
+            <stop offset="1" stopColor="var(--color-elevated)" stopOpacity="0.72" />
+          </linearGradient>
+          <linearGradient id="overview-accent" x1="0" x2="1">
+            <stop stopColor="var(--color-accent)" stopOpacity="0.92" />
+            <stop offset="1" stopColor="var(--color-accent-bright)" stopOpacity="0.7" />
+          </linearGradient>
+          <filter id="overview-shadow" x="-30%" y="-30%" width="160%" height="160%">
+            <feDropShadow dx="0" dy="10" floodColor="var(--color-root)" floodOpacity="0.35" stdDeviation="12" />
+          </filter>
+        </defs>
+
+        <path d="M164 180 246 224M326 222l78-116M330 238l105 9M315 267l89 112M247 275l-74 103" stroke="var(--color-border-medium)" strokeDasharray="6 7" strokeWidth="2" />
+
+        <g filter="url(#overview-shadow)">
+          <rect x="18" y="88" width="170" height="184" rx="16" fill="url(#overview-card)" stroke="var(--color-border-subtle)" />
+          <circle cx="42" cy="112" r="5" fill="#f38b72" />
+          <circle cx="60" cy="112" r="5" fill="#edc467" />
+          <circle cx="78" cy="112" r="5" fill="var(--color-accent)" opacity="0.7" />
+          <path d="M42 140h75M42 156h108M42 172h54M58 188h80M58 204h62M42 220h98M58 236h48" stroke="currentColor" strokeLinecap="round" strokeOpacity="0.28" strokeWidth="5" />
+          <path d="M42 140h34M58 188h28M42 220h42" stroke="var(--color-accent)" strokeLinecap="round" strokeOpacity="0.75" strokeWidth="5" />
+          <text x="103" y="298" fill="currentColor" fontFamily="var(--font-sans)" fontSize="14" fontWeight="600" textAnchor="middle">代码仓库</text>
+        </g>
+
+        <g stroke="var(--color-border-medium)" strokeWidth="2">
+          <path d="M226 190 280 146 343 177 374 238 335 304 260 311 215 253Z" />
+          <path d="M280 146 300 226 343 177M226 190l74 36-85 27M300 226l74 12M300 226l35 78M300 226l-40 85" />
+          <path d="M260 311 215 253M335 304l39-66" />
+        </g>
+        <g fill="var(--color-elevated)" stroke="var(--color-accent)" strokeWidth="2">
+          <circle cx="280" cy="146" r="13" />
+          <circle cx="343" cy="177" r="16" />
+          <circle cx="374" cy="238" r="13" />
+          <circle cx="335" cy="304" r="15" />
+          <circle cx="260" cy="311" r="12" />
+          <circle cx="215" cy="253" r="14" />
+          <circle cx="226" cy="190" r="11" />
+        </g>
+        <circle cx="300" cy="226" r="34" fill="url(#overview-accent)" stroke="var(--color-accent-bright)" strokeWidth="2" />
+        <text x="300" y="234" fill="var(--color-root)" fontFamily="var(--font-mono)" fontSize="22" fontWeight="700" textAnchor="middle">&lt;/&gt;</text>
+        <text x="300" y="355" fill="currentColor" fontFamily="var(--font-sans)" fontSize="14" fontWeight="600" textAnchor="middle">知识图谱</text>
+
+        {[
+          { y: 54, color: "#6fcf97", title: "模块", subtitle: "Module" },
+          { y: 132, color: "#62a8ea", title: "类 / 接口", subtitle: "Class / Interface" },
+          { y: 210, color: "#9b8be8", title: "函数 / 方法", subtitle: "Function / Method" },
+          { y: 288, color: "#e8b65c", title: "依赖关系", subtitle: "Dependency" },
+          { y: 366, color: "#62bdac", title: "关键概念", subtitle: "Concept" },
+        ].map((item) => (
+          <g key={item.title} filter="url(#overview-shadow)">
+            <rect x="404" y={item.y} width="158" height="58" rx="12" fill="url(#overview-card)" stroke={item.color} strokeOpacity="0.65" />
+            <circle cx="426" cy={item.y + 29} r="9" fill={item.color} fillOpacity="0.22" stroke={item.color} />
+            <text x="445" y={item.y + 25} fill="currentColor" fontFamily="var(--font-sans)" fontSize="13" fontWeight="600">{item.title}</text>
+            <text x="445" y={item.y + 42} fill="currentColor" fillOpacity="0.55" fontFamily="var(--font-mono)" fontSize="9">{item.subtitle}</text>
+          </g>
+        ))}
+
+        <path d="M300 370v36M300 406H138v28M300 406h162v28M300 406v28" stroke="var(--color-border-medium)" strokeDasharray="5 6" strokeWidth="2" />
+        {[
+          { x: 70, label: "智能问答" },
+          { x: 231, label: "洞察分析" },
+          { x: 392, label: "团队协作" },
+        ].map((item) => (
+          <g key={item.label}>
+            <rect x={item.x} y="434" width="138" height="48" rx="12" fill="url(#overview-card)" stroke="var(--color-border-subtle)" />
+            <circle cx={item.x + 24} cy="458" r="9" fill="var(--color-accent)" fillOpacity="0.18" stroke="var(--color-accent)" />
+            <text x={item.x + 43} y="463" fill="currentColor" fontFamily="var(--font-sans)" fontSize="13" fontWeight="600">{item.label}</text>
+          </g>
+        ))}
+      </svg>
     </div>
   );
 }
@@ -712,6 +1018,7 @@ function ProjectDetailPanel({
   busy,
   busyAction,
   onQueue,
+  onDeleteProject,
   onDeleteJob,
   onReorderJobs,
 }: {
@@ -721,6 +1028,7 @@ function ProjectDetailPanel({
   busy: boolean;
   busyAction: string | null;
   onQueue: () => void;
+  onDeleteProject: () => void;
   onDeleteJob: (jobId: string) => void;
   onReorderJobs: (activeJobId: string, targetJobId: string) => void;
 }) {
@@ -739,18 +1047,37 @@ function ProjectDetailPanel({
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
+            onClick={onDeleteProject}
+            disabled={busyAction === `delete-project:${project.id}`}
+            className="rounded-md border border-red-500/30 bg-red-500/5 px-4 py-2.5 text-sm font-semibold text-red-400 transition hover:border-red-500/60 hover:bg-red-500/10 disabled:cursor-wait disabled:opacity-50"
+          >
+            {busyAction === `delete-project:${project.id}` ? "Deleting..." : "Delete Project"}
+          </button>
+          <button
+            type="button"
             onClick={onQueue}
             disabled={busy}
             className="rounded-md border border-border-medium bg-elevated px-4 py-2.5 text-sm font-semibold text-text-secondary transition hover:text-text-primary disabled:opacity-50"
           >
             {busy ? "Starting..." : "Begin Analysis"}
           </button>
-          <a
-            href={`/?project=${encodeURIComponent(project.id)}`}
-            className="rounded-md bg-accent px-4 py-2.5 text-sm font-bold text-black transition hover:bg-accent-bright"
-          >
-            Open Graph
-          </a>
+          {latestJob?.status === "completed" ? (
+            <a
+              href={`/?project=${encodeURIComponent(project.id)}`}
+              className="rounded-md bg-accent px-4 py-2.5 text-sm font-bold text-black transition hover:bg-accent-bright"
+            >
+              Open Graph
+            </a>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="cursor-not-allowed rounded-md bg-accent/30 px-4 py-2.5 text-sm font-bold text-text-muted"
+              title="Complete an analysis before opening the knowledge graph."
+            >
+              Graph Not Ready
+            </button>
+          )}
         </div>
       </div>
 
@@ -954,6 +1281,7 @@ function SettingsPanel({
   busy,
   providerPresets,
   testing,
+  onBack,
   onChange,
   onTestAgent,
   onSubmit,
@@ -963,6 +1291,7 @@ function SettingsPanel({
   busy: boolean;
   providerPresets: AgentProviderPreset[];
   testing: boolean;
+  onBack: () => void;
   onChange: (settings: OpenRepoSettings) => void;
   onTestAgent: () => void;
   onSubmit: (event: FormEvent) => void;
@@ -1000,8 +1329,20 @@ function SettingsPanel({
   return (
     <div className="py-4">
       <form onSubmit={onSubmit} className="w-full rounded-lg border border-border-subtle bg-surface p-5 shadow-2xl shadow-black/20">
-        <p className="font-mono text-xs uppercase tracking-[0.18em] text-accent">Global settings</p>
-        <h2 className="mt-2 font-heading text-3xl text-text-primary">Runtime configuration</h2>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="font-mono text-xs uppercase tracking-[0.18em] text-accent">Global settings</p>
+            <h2 className="mt-2 font-heading text-3xl text-text-primary">Runtime configuration</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex items-center justify-center gap-2 rounded-md border border-border-medium bg-elevated px-4 py-2 text-sm font-semibold text-text-secondary transition hover:border-accent/40 hover:text-text-primary"
+          >
+            <ChevronIcon direction="left" />
+            返回工作台
+          </button>
+        </div>
 
         <div className="mt-6 grid gap-4">
           <section className="rounded-md border border-border-subtle bg-root/45 p-4">
@@ -1190,6 +1531,99 @@ function sourceLabel(project: OpenRepoProject): string {
   return project.source.type === "github_repo"
     ? project.source.url
     : `${project.source.documentNames.length} document${project.source.documentNames.length === 1 ? "" : "s"}`;
+}
+
+function nextThemeMode(mode: ThemeMode): ThemeMode {
+  if (mode === "light") return "dark";
+  if (mode === "dark") return "system";
+  return "light";
+}
+
+function themeModeLabel(mode: ThemeMode): string {
+  return mode.charAt(0).toUpperCase() + mode.slice(1);
+}
+
+function themeModeChineseLabel(mode: ThemeMode): string {
+  if (mode === "light") return "亮色";
+  if (mode === "dark") return "暗色";
+  return "跟随系统";
+}
+
+function themeModeDisplayValue(mode: ThemeMode): string {
+  return mode === "system" ? "跟随系统" : `${themeModeChineseLabel(mode)}模式`;
+}
+
+function themeModeDescription(mode: ThemeMode): string {
+  if (mode === "light") return "清爽明亮，适合展示与阅读代码关系";
+  if (mode === "dark") return "降低高亮对比，适合低光环境持续阅读";
+  return "自动匹配系统外观，在亮色与暗色间切换";
+}
+
+function ChevronIcon({ direction }: { direction: "left" | "right" }) {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+      <path
+        d={direction === "left" ? "m15 18-6-6 6-6" : "m9 18 6-6-6-6"}
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
+      <path d="M12 5v14M5 12h14" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+    </svg>
+  );
+}
+
+function SettingsIcon() {
+  return (
+    <svg aria-hidden="true" className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24">
+      <path
+        d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21h-4v-.08A1.7 1.7 0 0 0 8.96 19.36a1.7 1.7 0 0 0-1.87.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.04H3v-4h.04A1.7 1.7 0 0 0 4.6 8.92a1.7 1.7 0 0 0-.34-1.87L4.2 7l2.83-2.83.06.06a1.7 1.7 0 0 0 1.87.34A1.7 1.7 0 0 0 10 3.04V3h4v.04a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06L19.8 7l-.06.06a1.7 1.7 0 0 0-.34 1.87A1.7 1.7 0 0 0 20.96 10H21v4h-.04A1.7 1.7 0 0 0 19.4 15Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+}
+
+function ThemeIcon({ mode }: { mode: ThemeMode }) {
+  if (mode === "light") {
+    return (
+      <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="3.5" stroke="currentColor" strokeWidth="1.8" />
+        <path d="M12 2.5v2M12 19.5v2M4.5 12h-2M21.5 12h-2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+      </svg>
+    );
+  }
+
+  if (mode === "dark") {
+    return (
+      <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+        <path d="M20 15.2A8.4 8.4 0 0 1 8.8 4 8.5 8.5 0 1 0 20 15.2Z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+      <rect x="3" y="4" width="18" height="13" rx="2" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M8 21h8M12 17v4" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+    </svg>
+  );
 }
 
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
