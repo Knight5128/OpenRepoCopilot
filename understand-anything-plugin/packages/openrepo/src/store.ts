@@ -270,6 +270,17 @@ export class OpenRepoStore {
     }
   }
 
+  deleteProject(projectId: string): void {
+    const project = this.readProject(projectId);
+    const activeJob = this.listJobs(projectId).find((job) => job.status === "queued" || job.status === "in_progress");
+    if (activeJob) {
+      throw new Error("Cannot delete a project while an analysis job is queued or running.");
+    }
+
+    const dir = projectDir(project.id, this.home);
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+
   reorderJobs(jobIds: string[]): OpenRepoJob[] {
     const seen = new Set<string>();
     const orderedIds = jobIds.filter((id) => {
