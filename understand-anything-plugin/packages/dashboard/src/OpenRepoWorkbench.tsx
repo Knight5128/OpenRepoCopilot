@@ -217,6 +217,9 @@ export default function OpenRepoWorkbench() {
       setSelectedProjectId(data.project.id);
       setView("project");
       setNotice("Repository project created.");
+      setTimeout(() => {
+      setNotice(null);
+    }, 3000);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -249,6 +252,9 @@ export default function OpenRepoWorkbench() {
       setSelectedProjectId(data.project.id);
       setView("project");
       setNotice("Document project created.");
+      setTimeout(() => {
+      setNotice(null);
+    }, 3000);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -264,6 +270,9 @@ export default function OpenRepoWorkbench() {
       await api(`/api/projects/${projectId}/analysis-jobs`, { method: "POST", body: "{}" });
       await refresh();
       setNotice("Analysis job added to the global queue.");
+      setTimeout(() => {
+      setNotice(null);
+    }, 3000);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -279,6 +288,9 @@ export default function OpenRepoWorkbench() {
       await api(`/api/jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" });
       await refresh();
       setNotice("Analysis job removed from the global queue.");
+      setTimeout(() => {
+      setNotice(null);
+    }, 3000);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -306,6 +318,9 @@ export default function OpenRepoWorkbench() {
       });
       await refresh();
       setNotice("Global analysis queue reordered.");
+      setTimeout(() => {
+      setNotice(null);
+    }, 3000);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -351,6 +366,9 @@ export default function OpenRepoWorkbench() {
       setProviderPresets(data.providerPresets);
       applyTheme(data.settings.appearance.themeMode);
       setNotice("Settings saved.");
+      setTimeout(() => {
+      setNotice(null);
+    }, 3000);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -368,6 +386,9 @@ export default function OpenRepoWorkbench() {
         body: JSON.stringify({ agent: settingsDraft.agent }),
       });
       setNotice("Agent connection test passed.");
+      setTimeout(() => {
+      setNotice(null);
+    }, 4000);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
