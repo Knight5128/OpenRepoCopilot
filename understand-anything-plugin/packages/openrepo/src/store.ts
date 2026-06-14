@@ -149,6 +149,7 @@ export class OpenRepoStore {
       projectId,
       kind: project.type === "github_repo" ? "code" : "knowledge",
       status: "queued",
+      queuePosition: this.nextQueuePosition(),
       createdAt: now,
       updatedAt: now,
       commandHint: `/openrepo-analyze ${projectId}`,
@@ -177,7 +178,9 @@ export class OpenRepoStore {
   }
 
   claimNextJob(projectId: string): OpenRepoJob {
-    const queued = this.listJobs(projectId).reverse().find((job) => job.status === "queued");
+    const queued = this.listJobs(projectId)
+      .filter((job) => job.status === "queued")
+      .sort(compareQueueJobs)[0];
     if (!queued) throw new Error(`No queued analysis job for project: ${projectId}`);
     return this.updateJob(queued.id, { status: "in_progress", startedAt: new Date().toISOString() });
   }
@@ -188,6 +191,30 @@ export class OpenRepoStore {
 
   failJob(jobId: string, error: string): OpenRepoJob {
     return this.updateJob(jobId, { status: "failed", completedAt: new Date().toISOString(), error });
+  }
+
+  deleteJob(jobId: string): void {
+    const job = this.readJob(jobId);
+    const file = jobFile(job.projectId, job.id, this.home);
+    fs.unlinkSync(file);
+    const project = this.readProject(job.projectId);
+    if (project.latestJobId === jobId) {
+      this.writeProject({
+        ...project,
+        latestJobId: this.listJobs(job.projectId)[0]?.id,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  }
+
+  reorderJobs(jobIds: string[]): OpenRepoJob[] {
+    const seen = new Set<string>();
+    const orderedIds = jobIds.filter((id) => {
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+    return orderedIds.map((id, index) => this.updateJob(id, { queuePosition: index + 1 }));
   }
 
   readGraph(projectId: string): unknown {
@@ -239,6 +266,17 @@ export class OpenRepoStore {
     fs.writeFileSync(jobFile(job.projectId, job.id, this.home), `${JSON.stringify(job, null, 2)}\n`, "utf8");
   }
 
+  private nextQueuePosition(): number {
+    let maxPosition = 0;
+    for (const project of this.listProjects()) {
+      for (const job of this.listJobs(project.id)) {
+        const position = job.queuePosition ?? Date.parse(job.createdAt);
+        maxPosition = Math.max(maxPosition, Number.isFinite(position) ? position : 0);
+      }
+    }
+    return maxPosition + 1;
+  }
+
   private uniqueProjectId(seed: string): string {
     this.ensureHome();
     const base = slugify(seed);
@@ -250,6 +288,15 @@ export class OpenRepoStore {
     }
     return id;
   }
+}
+
+function compareQueueJobs(a: OpenRepoJob, b: OpenRepoJob): number {
+  const parsedA = a.queuePosition ?? Date.parse(a.createdAt);
+  const parsedB = b.queuePosition ?? Date.parse(b.createdAt);
+  const aPosition = Number.isFinite(parsedA) ? parsedA : 0;
+  const bPosition = Number.isFinite(parsedB) ? parsedB : 0;
+  if (aPosition !== bPosition) return aPosition - bPosition;
+  return a.createdAt.localeCompare(b.createdAt);
 }
 
 function slugify(input: string): string {

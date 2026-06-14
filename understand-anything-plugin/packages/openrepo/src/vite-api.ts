@@ -90,9 +90,23 @@ export function createOpenRepoApiMiddleware(store = new OpenRepoStore()) {
         }
       }
 
+      if (req.method === "PATCH" && pathname === "/api/jobs/order") {
+        const body = await readJson(req);
+        if (!isRecord(body) || !Array.isArray(body.jobIds) || !body.jobIds.every((id) => typeof id === "string")) {
+          throw new Error("Expected JSON body with jobIds.");
+        }
+        sendJson(res, 200, { jobs: store.reorderJobs(body.jobIds) });
+        return;
+      }
+
       const jobMatch = pathname.match(/^\/api\/jobs\/([^/]+)$/);
       if (req.method === "GET" && jobMatch) {
         sendJson(res, 200, { job: store.readJob(decodeURIComponent(jobMatch[1])) });
+        return;
+      }
+      if (req.method === "DELETE" && jobMatch) {
+        store.deleteJob(decodeURIComponent(jobMatch[1]));
+        sendJson(res, 200, { ok: true });
         return;
       }
 

@@ -66,6 +66,21 @@ describe("OpenRepoStore", () => {
     expect(completed.status).toBe("completed");
   });
 
+  it("reorders and deletes analysis jobs", async () => {
+    const store = new OpenRepoStore({ home: tempHome() });
+    const project = await store.createGithubProject("https://github.com/owner/repo", { clone: false });
+    const first = store.createAnalysisJob(project.id);
+    const second = store.createAnalysisJob(project.id);
+
+    store.reorderJobs([second.id, first.id]);
+    const claimed = store.claimNextJob(project.id);
+    store.deleteJob(first.id);
+
+    expect(claimed.id).toBe(second.id);
+    expect(store.listJobs(project.id).map((job) => job.id)).not.toContain(first.id);
+    expect(() => store.readJob(first.id)).toThrow(/Job not found/);
+  });
+
   it("creates a document knowledge-base project", () => {
     const store = new OpenRepoStore({ home: tempHome() });
     const project = store.createDocumentProject("Docs", [

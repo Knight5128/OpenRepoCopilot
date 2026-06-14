@@ -34,6 +34,7 @@ export interface OpenRepoJob {
   projectId: string;
   kind: OpenRepoJobKind;
   status: OpenRepoJobStatus;
+  queuePosition?: number;
   createdAt: string;
   updatedAt: string;
   startedAt?: string;

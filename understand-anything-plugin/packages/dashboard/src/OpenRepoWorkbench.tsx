@@ -22,10 +22,16 @@ interface OpenRepoJob {
   id: string;
   projectId: string;
   status: JobStatus;
+  queuePosition?: number;
   commandHint: string;
   createdAt: string;
   updatedAt: string;
   error?: string;
+}
+
+interface GlobalAnalysisJob extends OpenRepoJob {
+  projectName: string;
+  projectType: ProjectType;
 }
 
 interface ProjectDetails {
@@ -92,6 +98,18 @@ export default function OpenRepoWorkbench() {
     for (const project of projects) result[project.id] = details[project.id]?.jobs[0];
     return result;
   }, [details, projects]);
+
+  const globalJobs = useMemo<GlobalAnalysisJob[]>(() => {
+    return Object.values(details)
+      .flatMap(({ project, jobs }) =>
+        jobs.map((job) => ({
+          ...job,
+          projectName: project.name,
+          projectType: project.type,
+        })),
+      )
+      .sort(compareGlobalJobs);
+  }, [details]);
 
   const selectedProject = selectedProjectId ? details[selectedProjectId]?.project : undefined;
   const selectedJobs = selectedProjectId ? details[selectedProjectId]?.jobs ?? [] : [];
@@ -169,7 +187,49 @@ export default function OpenRepoWorkbench() {
     try {
       await api(`/api/projects/${projectId}/analysis-jobs`, { method: "POST", body: "{}" });
       await refresh();
-      setNotice("Analysis job queued.");
+      setNotice("Analysis job added to the global queue.");
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function deleteAnalysisJob(jobId: string) {
+    setBusy(`delete:${jobId}`);
+    setError(null);
+    setNotice(null);
+    try {
+      await api(`/api/jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" });
+      await refresh();
+      setNotice("Analysis job removed from the global queue.");
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function reorderAnalysisJobs(activeJobId: string, targetJobId: string) {
+    if (activeJobId === targetJobId) return;
+    const activeIndex = globalJobs.findIndex((job) => job.id === activeJobId);
+    const targetIndex = globalJobs.findIndex((job) => job.id === targetJobId);
+    if (activeIndex < 0 || targetIndex < 0) return;
+
+    const nextJobs = [...globalJobs];
+    const [activeJob] = nextJobs.splice(activeIndex, 1);
+    nextJobs.splice(targetIndex, 0, activeJob);
+
+    setBusy("queue-order");
+    setError(null);
+    setNotice(null);
+    try {
+      await api("/api/jobs/order", {
+        method: "PATCH",
+        body: JSON.stringify({ jobIds: nextJobs.map((job) => job.id) }),
+      });
+      await refresh();
+      setNotice("Global analysis queue reordered.");
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -382,9 +442,13 @@ export default function OpenRepoWorkbench() {
             {view === "project" && selectedProject && (
               <ProjectDetailPanel
                 busy={busy === selectedProject.id}
+                busyAction={busy}
+                globalJobs={globalJobs}
                 jobs={selectedJobs}
                 project={selectedProject}
+                onDeleteJob={deleteAnalysisJob}
                 onQueue={() => queueAnalysis(selectedProject.id)}
+                onReorderJobs={reorderAnalysisJobs}
               />
             )}
 
@@ -539,15 +603,26 @@ function CreateProjectPanel(props: {
 function ProjectDetailPanel({
   project,
   jobs,
+  globalJobs,
   busy,
+  busyAction,
   onQueue,
+  onDeleteJob,
+  onReorderJobs,
 }: {
   project: OpenRepoProject;
   jobs: OpenRepoJob[];
+  globalJobs: GlobalAnalysisJob[];
   busy: boolean;
+  busyAction: string | null;
   onQueue: () => void;
+  onDeleteJob: (jobId: string) => void;
+  onReorderJobs: (activeJobId: string, targetJobId: string) => void;
 }) {
   const latestJob = jobs[0];
+  const status = analysisStatus(latestJob);
+  const [draggedJobId, setDraggedJobId] = useState<string | null>(null);
+  const [dragOverJobId, setDragOverJobId] = useState<string | null>(null);
   return (
     <div className="py-4">
       <div className="mb-5 flex flex-col gap-4 border-b border-border-subtle pb-5 lg:flex-row lg:items-end lg:justify-between">
@@ -563,7 +638,7 @@ function ProjectDetailPanel({
             disabled={busy}
             className="rounded-md border border-border-medium bg-elevated px-4 py-2.5 text-sm font-semibold text-text-secondary transition hover:text-text-primary disabled:opacity-50"
           >
-            {busy ? "Queuing..." : "Queue Analysis"}
+            {busy ? "Starting..." : "Begin Analysis"}
           </button>
           <a
             href={`/?project=${encodeURIComponent(project.id)}`}
@@ -580,19 +655,98 @@ function ProjectDetailPanel({
         <Metric label="Graph path" value={project.graphPath} wide />
       </div>
 
+      <section className="mt-5 rounded-lg border border-border-subtle bg-surface">
+        <div className="flex flex-col gap-3 border-b border-border-subtle px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted">Analysis Status</p>
+            <h2 className="mt-1 font-heading text-xl text-text-primary">{status.title}</h2>
+          </div>
+          <span className={`w-fit rounded px-2 py-1 font-mono text-[10px] uppercase tracking-wider ${status.badgeClass}`}>
+            {status.badge}
+          </span>
+        </div>
+        <div className="px-4 py-4">
+          <div className="h-2 overflow-hidden rounded-full bg-root">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${status.barClass}`}
+              style={{ width: `${status.progress}%` }}
+            />
+          </div>
+          <div className="mt-3 grid gap-3 text-xs text-text-secondary sm:grid-cols-3">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">Progress</p>
+              <p className="mt-1 font-semibold text-text-primary">{status.progress}%</p>
+            </div>
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">Last update</p>
+              <p className="mt-1 font-semibold text-text-primary">
+                {latestJob ? new Date(latestJob.updatedAt).toLocaleString() : "Not started"}
+              </p>
+            </div>
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">Current job</p>
+              <p className="mt-1 truncate font-mono text-text-primary" title={latestJob?.id ?? "none"}>
+                {latestJob?.id ?? "none"}
+              </p>
+            </div>
+          </div>
+          {latestJob?.error && <p className="mt-3 text-xs text-red-300">{latestJob.error}</p>}
+        </div>
+      </section>
+
       <div className="mt-5 rounded-lg border border-border-subtle bg-surface">
         <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
-          <h2 className="font-heading text-xl">Analysis jobs</h2>
-          <span className="font-mono text-xs text-text-muted">{jobs.length} total</span>
+          <h2 className="font-heading text-xl">Global Analysis Queue</h2>
+          <span className="font-mono text-xs text-text-muted">{globalJobs.length} total</span>
         </div>
         <div className="divide-y divide-border-subtle">
-          {jobs.length === 0 ? (
-            <div className="px-4 py-12 text-center text-sm text-text-muted">No analysis jobs yet.</div>
+          {globalJobs.length === 0 ? (
+            <div className="px-4 py-12 text-center text-sm text-text-muted">No analysis jobs queued yet.</div>
           ) : (
-            jobs.map((job) => (
-              <div key={job.id} className="grid gap-3 px-4 py-4 lg:grid-cols-[1fr_auto] lg:items-center">
+            globalJobs.map((job) => (
+              <div
+                key={job.id}
+                draggable
+                onDragStart={(event) => {
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("text/plain", job.id);
+                  setDraggedJobId(job.id);
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                  setDragOverJobId(job.id);
+                }}
+                onDragLeave={() => setDragOverJobId((current) => current === job.id ? null : current)}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const activeJobId = draggedJobId ?? event.dataTransfer.getData("text/plain");
+                  if (activeJobId) onReorderJobs(activeJobId, job.id);
+                  setDraggedJobId(null);
+                  setDragOverJobId(null);
+                }}
+                onDragEnd={() => {
+                  setDraggedJobId(null);
+                  setDragOverJobId(null);
+                }}
+                className={`grid gap-3 px-4 py-4 transition lg:grid-cols-[1fr_auto] lg:items-center ${
+                  dragOverJobId === job.id ? "bg-accent/10" : "bg-transparent"
+                } ${draggedJobId === job.id ? "opacity-60" : ""}`}
+              >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
+                    <span
+                      className="grid h-7 w-7 cursor-grab place-items-center rounded border border-border-subtle bg-root font-mono text-xs text-text-muted active:cursor-grabbing"
+                      title="Drag to reorder"
+                    >
+                      ::
+                    </span>
+                    <span className="rounded border border-border-subtle bg-root px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-text-muted">
+                      {job.projectType === "github_repo" ? "GH" : "KB"}
+                    </span>
+                    <span className="max-w-[280px] truncate text-sm font-semibold text-text-primary" title={job.projectName}>
+                      {job.projectName}
+                    </span>
                     <span className={`rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ${statusClass(job.status)}`}>
                       {job.status.replace("_", " ")}
                     </span>
@@ -603,6 +757,16 @@ function ProjectDetailPanel({
                   </div>
                   {job.error && <p className="mt-2 text-xs text-red-300">{job.error}</p>}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => onDeleteJob(job.id)}
+                  disabled={busyAction === `delete:${job.id}`}
+                  className="h-9 w-9 rounded-md border border-border-subtle bg-root font-mono text-sm text-text-muted transition hover:border-red-500/50 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+                  title="Delete analysis job"
+                  aria-label={`Delete analysis job ${job.id}`}
+                >
+                  x
+                </button>
               </div>
             ))
           )}
@@ -610,6 +774,67 @@ function ProjectDetailPanel({
       </div>
     </div>
   );
+}
+
+function compareGlobalJobs(a: GlobalAnalysisJob, b: GlobalAnalysisJob): number {
+  const parsedA = a.queuePosition ?? Date.parse(a.createdAt);
+  const parsedB = b.queuePosition ?? Date.parse(b.createdAt);
+  const aPosition = Number.isFinite(parsedA) ? parsedA : 0;
+  const bPosition = Number.isFinite(parsedB) ? parsedB : 0;
+  if (aPosition !== bPosition) return aPosition - bPosition;
+  return a.createdAt.localeCompare(b.createdAt);
+}
+
+function analysisStatus(job: OpenRepoJob | undefined): {
+  title: string;
+  badge: string;
+  progress: number;
+  badgeClass: string;
+  barClass: string;
+} {
+  if (!job) {
+    return {
+      title: "Ready to begin",
+      badge: "idle",
+      progress: 0,
+      badgeClass: "bg-elevated text-text-muted",
+      barClass: "bg-border-medium",
+    };
+  }
+  if (job.status === "queued") {
+    return {
+      title: "Waiting in the global queue",
+      badge: "queued",
+      progress: 15,
+      badgeClass: statusClass(job.status),
+      barClass: "bg-amber-400",
+    };
+  }
+  if (job.status === "in_progress") {
+    return {
+      title: "Analysis is running",
+      badge: "in progress",
+      progress: 55,
+      badgeClass: statusClass(job.status),
+      barClass: "bg-sky-400",
+    };
+  }
+  if (job.status === "completed") {
+    return {
+      title: "Analysis completed",
+      badge: "completed",
+      progress: 100,
+      badgeClass: statusClass(job.status),
+      barClass: "bg-emerald-400",
+    };
+  }
+  return {
+    title: "Analysis failed",
+    badge: "failed",
+    progress: 100,
+    badgeClass: statusClass(job.status),
+    barClass: "bg-red-400",
+  };
 }
 
 function SettingsPanel({
