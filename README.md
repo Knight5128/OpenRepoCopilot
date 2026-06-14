@@ -52,12 +52,15 @@ pnpm --filter @understand-anything/dashboard build
 
 Start the OpenRepoCopilot workbench:
 
-```bash
-pnpm --filter @openrepo-copilot/server build
-node understand-anything-plugin/packages/openrepo/dist/cli.js ui
+```powershell
+New-Item -ItemType Directory -Force .openrepo-dev
+$env:OPENREPO_HOME = (Resolve-Path .openrepo-dev).Path
+$env:OPENREPO_NO_OPEN = "true"
+$env:VITE_OPENREPO_MODE = "true"
+pnpm --filter @understand-anything/dashboard dev -- --host 127.0.0.1
 ```
 
-The CLI starts the dashboard dev server on `127.0.0.1`. Open the URL printed in the terminal, usually:
+This starts the full local workbench through the dashboard dev server with the OpenRepoCopilot API middleware enabled. Open the URL printed in the terminal, usually:
 
 ```text
 http://127.0.0.1:5173/
