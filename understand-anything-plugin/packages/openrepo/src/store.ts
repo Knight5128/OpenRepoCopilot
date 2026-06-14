@@ -12,9 +12,19 @@ import {
   settingsFile,
   sourceDir,
 } from "./paths.js";
+import { createAgentClient, readAgentCredential } from "./agent-client.js";
 import { clonePublicGitHubRepo, parseGitHubRepoUrl } from "./github.js";
 import { writeDocumentKnowledgeBase } from "./documents.js";
-import type { OpenRepoJob, OpenRepoProject, OpenRepoSettings, UploadedDocument } from "./types.js";
+import { DEFAULT_AGENT_PROVIDER, isAgentProvider, providerPreset } from "./providers.js";
+import type {
+  OpenRepoAgentSettings,
+  OpenRepoAgentStatus,
+  OpenRepoJob,
+  OpenRepoProject,
+  OpenRepoSettings,
+  OpenRepoThemeMode,
+  UploadedDocument,
+} from "./types.js";
 
 export interface OpenRepoStoreOptions {
   home?: string;
@@ -39,15 +49,40 @@ export class OpenRepoStore {
     this.ensureHome();
     const file = settingsFile(this.home);
     if (!fs.existsSync(file)) return defaultSettings(this.home);
-    const raw = JSON.parse(fs.readFileSync(file, "utf8")) as Partial<OpenRepoSettings>;
-    return normalizeSettings({ ...defaultSettings(this.home), ...raw }, this.home);
+    const raw = JSON.parse(fs.readFileSync(file, "utf8")) as Record<string, unknown>;
+    return normalizeSettings(raw, this.home);
   }
 
-  writeSettings(input: Partial<OpenRepoSettings>): OpenRepoSettings {
-    const next = normalizeSettings({ ...this.readSettings(), ...input }, this.home);
+  writeSettings(input: Partial<OpenRepoSettings> | Record<string, unknown>): OpenRepoSettings {
+    const current = this.readSettings();
+    const rawInput = input as Record<string, unknown>;
+    const next = normalizeSettings({
+      ...current,
+      ...rawInput,
+      appearance: { ...current.appearance, ...recordValue(rawInput.appearance) },
+      storage: { ...current.storage, ...recordValue(rawInput.storage) },
+      agent: { ...current.agent, ...recordValue(rawInput.agent) },
+    }, this.home);
     fs.mkdirSync(this.home, { recursive: true });
     fs.writeFileSync(settingsFile(this.home), `${JSON.stringify(next, null, 2)}\n`, "utf8");
     return next;
+  }
+
+  readAgentStatus(): OpenRepoAgentStatus {
+    const settings = this.readSettings();
+    const credential = readAgentCredential(settings.agent, this.home);
+    return {
+      apiKeyConfigured: Boolean(credential.apiKey),
+      apiKeyFilePath: credential.apiKeyFilePath,
+      activeApiKeyEnv: settings.agent.apiKeyEnv,
+    };
+  }
+
+  async testAgentConnection(input?: Record<string, unknown>): Promise<void> {
+    const settings = this.readSettings();
+    const agent = normalizeAgentSettings({ ...settings.agent, ...input }, this.home);
+    const client = createAgentClient(agent, this.home);
+    await client.testConnection();
   }
 
   listProjects(): OpenRepoProject[] {
@@ -83,8 +118,8 @@ export class OpenRepoStore {
     const now = new Date().toISOString();
     const dir = projectDir(id, this.home);
     const settings = this.readSettings();
-    const sourcePath = settings.cloneRootPath
-      ? path.join(settings.cloneRootPath, id)
+    const sourcePath = settings.storage.cloneRootPath
+      ? path.join(settings.storage.cloneRootPath, id)
       : sourceDir(id, this.home);
     fs.mkdirSync(sourcePath, { recursive: true });
     fs.mkdirSync(jobsDir(id, this.home), { recursive: true });
@@ -332,25 +367,79 @@ function languageFromPath(filePath: string): string {
   return byExt[ext] ?? "text";
 }
 
-function defaultSettings(home: string): OpenRepoSettings {
+export function defaultSettings(home: string): OpenRepoSettings {
+  const preset = providerPreset(DEFAULT_AGENT_PROVIDER);
   return {
-    themeMode: "system",
-    agentApiBaseUrl: "http://127.0.0.1:5173/api",
-    agentApiKeyEnv: "OPENREPO_AGENT_API_KEY",
-    cloneRootPath: path.join(home, "clones"),
-    graphExportPath: path.join(home, "exports"),
+    appearance: {
+      themeMode: "system",
+    },
+    storage: {
+      cloneRootPath: path.join(home, "clones"),
+      graphExportPath: path.join(home, "exports"),
+    },
+    agent: {
+      provider: preset.id,
+      model: preset.model,
+      baseUrl: preset.baseUrl,
+      apiKeyEnv: preset.apiKeyEnv,
+      autoRunJobs: true,
+      requestTimeout: 120000,
+      maxConcurrency: 2,
+    },
   };
 }
 
-function normalizeSettings(input: OpenRepoSettings, home: string): OpenRepoSettings {
-  const themeMode = input.themeMode === "light" || input.themeMode === "dark" || input.themeMode === "system"
-    ? input.themeMode
-    : "system";
+export function normalizeSettings(input: Record<string, unknown>, home: string): OpenRepoSettings {
+  const defaults = defaultSettings(home);
+  const appearanceInput = recordValue(input.appearance);
+  const storageInput = recordValue(input.storage);
+  const agentInput = recordValue(input.agent);
   return {
-    themeMode,
-    agentApiBaseUrl: String(input.agentApiBaseUrl || defaultSettings(home).agentApiBaseUrl).trim(),
-    agentApiKeyEnv: String(input.agentApiKeyEnv || defaultSettings(home).agentApiKeyEnv).trim(),
-    cloneRootPath: path.resolve(String(input.cloneRootPath || defaultSettings(home).cloneRootPath)),
-    graphExportPath: path.resolve(String(input.graphExportPath || defaultSettings(home).graphExportPath)),
+    appearance: {
+      themeMode: normalizeThemeMode(appearanceInput.themeMode ?? input.themeMode, defaults.appearance.themeMode),
+    },
+    storage: {
+      cloneRootPath: path.resolve(String(storageInput.cloneRootPath ?? input.cloneRootPath ?? defaults.storage.cloneRootPath)),
+      graphExportPath: path.resolve(String(storageInput.graphExportPath ?? input.graphExportPath ?? defaults.storage.graphExportPath)),
+    },
+    agent: normalizeAgentSettings({
+      ...defaults.agent,
+      ...agentInput,
+      baseUrl: agentInput.baseUrl ?? input.agentApiBaseUrl ?? defaults.agent.baseUrl,
+      apiKeyEnv: agentInput.apiKeyEnv ?? input.agentApiKeyEnv ?? defaults.agent.apiKeyEnv,
+    }, home),
   };
+}
+
+function normalizeAgentSettings(input: Record<string, unknown>, _home: string): OpenRepoAgentSettings {
+  const provider = isAgentProvider(input.provider) ? input.provider : DEFAULT_AGENT_PROVIDER;
+  const preset = providerPreset(provider);
+  const requestTimeout = Number(input.requestTimeout);
+  const maxConcurrency = Number(input.maxConcurrency);
+  return {
+    provider,
+    model: nonEmptyString(input.model, preset.model),
+    baseUrl: normalizeBaseUrl(nonEmptyString(input.baseUrl, preset.baseUrl)),
+    apiKeyEnv: nonEmptyString(input.apiKeyEnv, preset.apiKeyEnv),
+    autoRunJobs: typeof input.autoRunJobs === "boolean" ? input.autoRunJobs : true,
+    requestTimeout: Number.isFinite(requestTimeout) && requestTimeout >= 1000 ? Math.floor(requestTimeout) : 120000,
+    maxConcurrency: Number.isFinite(maxConcurrency) && maxConcurrency >= 1 ? Math.floor(maxConcurrency) : 2,
+  };
+}
+
+function normalizeThemeMode(input: unknown, fallback: OpenRepoThemeMode): OpenRepoThemeMode {
+  return input === "light" || input === "dark" || input === "system" ? input : fallback;
+}
+
+function recordValue(input: unknown): Record<string, unknown> {
+  return typeof input === "object" && input !== null && !Array.isArray(input) ? input as Record<string, unknown> : {};
+}
+
+function nonEmptyString(input: unknown, fallback: string): string {
+  const value = typeof input === "string" ? input.trim() : "";
+  return value || fallback;
+}
+
+function normalizeBaseUrl(input: string): string {
+  return input.replace(/\/+$/, "");
 }

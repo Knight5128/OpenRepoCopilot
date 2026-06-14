@@ -101,6 +101,13 @@ function writeManifest() {
     createdAt: new Date().toISOString(),
     source: "OpenRepoCopilot",
     buildOutputs: distDirs,
+    defaultAgent: {
+      provider: "dashscope",
+      baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      model: "glm-5.1",
+      apiKeyEnv: "DASHSCOPE_API_KEY",
+      apiKeyFile: "<OPENREPO_HOME>/agent.env",
+    },
     archive: path.basename(archivePath),
   };
   fs.writeFileSync(path.join(stageDir, "package-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);

@@ -5,6 +5,7 @@ type ProjectType = "github_repo" | "document_kb";
 type JobStatus = "queued" | "in_progress" | "completed" | "failed";
 type WorkbenchView = "overview" | "create" | "project" | "settings";
 type ThemeMode = "light" | "dark" | "system";
+type AgentProvider = "dashscope" | "zhipuai" | "openai" | "deepseek" | "openrouter" | "custom";
 
 interface OpenRepoProject {
   id: string;
@@ -40,26 +41,86 @@ interface ProjectDetails {
 }
 
 interface OpenRepoSettings {
-  themeMode: ThemeMode;
-  agentApiBaseUrl: string;
-  agentApiKeyEnv: string;
-  cloneRootPath: string;
-  graphExportPath: string;
+  appearance: {
+    themeMode: ThemeMode;
+  };
+  storage: {
+    cloneRootPath: string;
+    graphExportPath: string;
+  };
+  agent: {
+    provider: AgentProvider;
+    model: string;
+    baseUrl: string;
+    apiKeyEnv: string;
+    autoRunJobs: boolean;
+    requestTimeout: number;
+    maxConcurrency: number;
+  };
+}
+
+interface AgentProviderPreset {
+  id: AgentProvider;
+  label: string;
+  baseUrl: string;
+  model: string;
+  apiKeyEnv: string;
+}
+
+interface AgentStatus {
+  apiKeyConfigured: boolean;
+  apiKeyFilePath: string;
+  activeApiKeyEnv: string;
+}
+
+interface SettingsResponse {
+  settings: OpenRepoSettings;
+  agentStatus: AgentStatus;
+  providerPresets: AgentProviderPreset[];
 }
 
 const fallbackSettings: OpenRepoSettings = {
-  themeMode: "system",
-  agentApiBaseUrl: "http://127.0.0.1:5173/api",
-  agentApiKeyEnv: "OPENREPO_AGENT_API_KEY",
-  cloneRootPath: "",
-  graphExportPath: "",
+  appearance: {
+    themeMode: "system",
+  },
+  storage: {
+    cloneRootPath: "",
+    graphExportPath: "",
+  },
+  agent: {
+    provider: "dashscope",
+    model: "glm-5.1",
+    baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    apiKeyEnv: "DASHSCOPE_API_KEY",
+    autoRunJobs: true,
+    requestTimeout: 120000,
+    maxConcurrency: 2,
+  },
 };
+
+const fallbackAgentStatus: AgentStatus = {
+  apiKeyConfigured: false,
+  apiKeyFilePath: "",
+  activeApiKeyEnv: "DASHSCOPE_API_KEY",
+};
+
+const fallbackProviderPresets: AgentProviderPreset[] = [
+  {
+    id: "dashscope",
+    label: "DashScope / Alibaba Bailian",
+    baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    model: "glm-5.1",
+    apiKeyEnv: "DASHSCOPE_API_KEY",
+  },
+];
 
 export default function OpenRepoWorkbench() {
   const [projects, setProjects] = useState<OpenRepoProject[]>([]);
   const [details, setDetails] = useState<Record<string, ProjectDetails>>({});
   const [settings, setSettings] = useState<OpenRepoSettings>(fallbackSettings);
   const [settingsDraft, setSettingsDraft] = useState<OpenRepoSettings>(fallbackSettings);
+  const [agentStatus, setAgentStatus] = useState<AgentStatus>(fallbackAgentStatus);
+  const [providerPresets, setProviderPresets] = useState<AgentProviderPreset[]>(fallbackProviderPresets);
   const [githubUrl, setGithubUrl] = useState("");
   const [documentName, setDocumentName] = useState("Document Knowledge Base");
   const [documentFiles, setDocumentFiles] = useState<FileList | null>(null);
@@ -74,11 +135,13 @@ export default function OpenRepoWorkbench() {
   const refresh = useCallback(async () => {
     const [projectsData, settingsData] = await Promise.all([
       api<{ projects: OpenRepoProject[] }>("/api/projects"),
-      api<{ settings: OpenRepoSettings }>("/api/settings"),
+      api<SettingsResponse>("/api/settings"),
     ]);
     setProjects(projectsData.projects);
     setSettings(settingsData.settings);
     setSettingsDraft(settingsData.settings);
+    setAgentStatus(settingsData.agentStatus);
+    setProviderPresets(settingsData.providerPresets);
     const entries = await Promise.all(
       projectsData.projects.map(async (project) => [project.id, await api<ProjectDetails>(`/api/projects/${project.id}`)] as const),
     );
@@ -90,8 +153,8 @@ export default function OpenRepoWorkbench() {
   }, [refresh]);
 
   useEffect(() => {
-    applyTheme(settings.themeMode);
-  }, [settings.themeMode]);
+    applyTheme(settings.appearance.themeMode);
+  }, [settings.appearance.themeMode]);
 
   const latestJobs = useMemo(() => {
     const result: Record<string, OpenRepoJob | undefined> = {};
@@ -238,16 +301,22 @@ export default function OpenRepoWorkbench() {
   }
 
   async function updateThemeMode(themeMode: ThemeMode) {
-    setSettings((current) => ({ ...current, themeMode }));
-    setSettingsDraft((current) => ({ ...current, themeMode }));
+    const nextSettings = {
+      ...settings,
+      appearance: { ...settings.appearance, themeMode },
+    };
+    setSettings(nextSettings);
+    setSettingsDraft((current) => ({ ...current, appearance: { ...current.appearance, themeMode } }));
     applyTheme(themeMode);
     try {
-      const data = await api<{ settings: OpenRepoSettings }>("/api/settings", {
+      const data = await api<SettingsResponse>("/api/settings", {
         method: "PUT",
-        body: JSON.stringify({ ...settings, themeMode }),
+        body: JSON.stringify(nextSettings),
       });
       setSettings(data.settings);
       setSettingsDraft(data.settings);
+      setAgentStatus(data.agentStatus);
+      setProviderPresets(data.providerPresets);
     } catch (err) {
       setError(errorMessage(err));
     }
@@ -259,14 +328,33 @@ export default function OpenRepoWorkbench() {
     setError(null);
     setNotice(null);
     try {
-      const data = await api<{ settings: OpenRepoSettings }>("/api/settings", {
+      const data = await api<SettingsResponse>("/api/settings", {
         method: "PUT",
         body: JSON.stringify(settingsDraft),
       });
       setSettings(data.settings);
       setSettingsDraft(data.settings);
-      applyTheme(data.settings.themeMode);
+      setAgentStatus(data.agentStatus);
+      setProviderPresets(data.providerPresets);
+      applyTheme(data.settings.appearance.themeMode);
       setNotice("Settings saved.");
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function testAgentConnection() {
+    setBusy("agent-test");
+    setError(null);
+    setNotice(null);
+    try {
+      await api("/api/agent/test", {
+        method: "POST",
+        body: JSON.stringify({ agent: settingsDraft.agent }),
+      });
+      setNotice("Agent connection test passed.");
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -372,7 +460,7 @@ export default function OpenRepoWorkbench() {
                       type="button"
                       onClick={() => updateThemeMode(mode)}
                       className={`rounded px-2 py-1.5 text-xs font-semibold capitalize transition ${
-                        settings.themeMode === mode ? "bg-accent text-black" : "text-text-muted hover:text-text-primary"
+                        settings.appearance.themeMode === mode ? "bg-accent text-black" : "text-text-muted hover:text-text-primary"
                       }`}
                     >
                       {mode}
@@ -391,11 +479,11 @@ export default function OpenRepoWorkbench() {
               <div className="space-y-2">
                 <button
                   type="button"
-                  onClick={() => updateThemeMode(settings.themeMode === "dark" ? "light" : "dark")}
+                  onClick={() => updateThemeMode(settings.appearance.themeMode === "dark" ? "light" : "dark")}
                   className="grid h-10 w-full place-items-center rounded-md border border-border-medium bg-elevated font-mono text-xs text-text-secondary"
                   title="Toggle theme"
                 >
-                  {settings.themeMode === "light" ? "L" : settings.themeMode === "dark" ? "D" : "S"}
+                  {settings.appearance.themeMode === "light" ? "L" : settings.appearance.themeMode === "dark" ? "D" : "S"}
                 </button>
                 <button
                   type="button"
@@ -454,9 +542,13 @@ export default function OpenRepoWorkbench() {
 
             {view === "settings" && (
               <SettingsPanel
+                agentStatus={agentStatus}
                 busy={busy === "settings"}
+                providerPresets={providerPresets}
                 draft={settingsDraft}
+                testing={busy === "agent-test"}
                 onChange={setSettingsDraft}
+                onTestAgent={testAgentConnection}
                 onSubmit={saveSettings}
               />
             )}
@@ -489,7 +581,7 @@ function OverviewPanel({
         </p>
         <div className="mt-8 grid gap-3 sm:grid-cols-3">
           <Metric label="Projects" value={String(projectCount)} />
-          <Metric label="Theme" value={settings.themeMode} />
+          <Metric label="Theme" value={settings.appearance.themeMode} />
           <Metric label="Storage" value="Local" />
         </div>
         <div className="mt-8 flex flex-wrap gap-3">
@@ -839,57 +931,191 @@ function analysisStatus(job: OpenRepoJob | undefined): {
 
 function SettingsPanel({
   draft,
+  agentStatus,
   busy,
+  providerPresets,
+  testing,
   onChange,
+  onTestAgent,
   onSubmit,
 }: {
   draft: OpenRepoSettings;
+  agentStatus: AgentStatus;
   busy: boolean;
+  providerPresets: AgentProviderPreset[];
+  testing: boolean;
   onChange: (settings: OpenRepoSettings) => void;
+  onTestAgent: () => void;
   onSubmit: (event: FormEvent) => void;
 }) {
+  const activePreset = providerPresets.find((preset) => preset.id === draft.agent.provider) ?? providerPresets[0];
+
+  function applyProviderPreset(provider: AgentProvider) {
+    const preset = providerPresets.find((candidate) => candidate.id === provider);
+    onChange({
+      ...draft,
+      agent: {
+        ...draft.agent,
+        provider,
+        baseUrl: preset?.baseUrl ?? draft.agent.baseUrl,
+        model: preset?.model ?? draft.agent.model,
+        apiKeyEnv: preset?.apiKeyEnv ?? draft.agent.apiKeyEnv,
+      },
+    });
+  }
+
+  function restoreActivePreset() {
+    if (!activePreset) return;
+    onChange({
+      ...draft,
+      agent: {
+        ...draft.agent,
+        provider: activePreset.id,
+        baseUrl: activePreset.baseUrl,
+        model: activePreset.model,
+        apiKeyEnv: activePreset.apiKeyEnv,
+      },
+    });
+  }
+
   return (
-    <div className="flex min-h-[calc(100vh-3rem)] items-center justify-center">
-      <form onSubmit={onSubmit} className="w-full max-w-2xl rounded-lg border border-border-subtle bg-surface p-5 shadow-2xl shadow-black/20">
+    <div className="py-4">
+      <form onSubmit={onSubmit} className="w-full rounded-lg border border-border-subtle bg-surface p-5 shadow-2xl shadow-black/20">
         <p className="font-mono text-xs uppercase tracking-[0.18em] text-accent">Global settings</p>
-        <h2 className="mt-2 font-heading text-3xl text-text-primary">Runtime and agent configuration</h2>
+        <h2 className="mt-2 font-heading text-3xl text-text-primary">Runtime configuration</h2>
+
         <div className="mt-6 grid gap-4">
-          <SettingsInput
-            label="Agent API base URL"
-            value={draft.agentApiBaseUrl}
-            onChange={(value) => onChange({ ...draft, agentApiBaseUrl: value })}
-            placeholder="http://127.0.0.1:5173/api"
-          />
-          <SettingsInput
-            label="Agent API key environment variable"
-            value={draft.agentApiKeyEnv}
-            onChange={(value) => onChange({ ...draft, agentApiKeyEnv: value })}
-            placeholder="OPENREPO_AGENT_API_KEY"
-          />
-          <SettingsInput
-            label="Project clone root path"
-            value={draft.cloneRootPath}
-            onChange={(value) => onChange({ ...draft, cloneRootPath: value })}
-            placeholder="D:\\OpenRepoCopilot\\clones"
-          />
-          <SettingsInput
-            label="Knowledge graph export path"
-            value={draft.graphExportPath}
-            onChange={(value) => onChange({ ...draft, graphExportPath: value })}
-            placeholder="D:\\OpenRepoCopilot\\exports"
-          />
-          <label className="block text-sm font-semibold text-text-secondary">
-            Theme mode
-            <select
-              value={draft.themeMode}
-              onChange={(event) => onChange({ ...draft, themeMode: event.target.value as ThemeMode })}
-              className="mt-2 w-full rounded-md border border-border-medium bg-root px-3 py-2 text-sm text-text-primary outline-none transition focus:border-accent"
-            >
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-              <option value="system">System</option>
-            </select>
-          </label>
+          <section className="rounded-md border border-border-subtle bg-root/45 p-4">
+            <h3 className="font-heading text-xl text-text-primary">Appearance</h3>
+            <label className="mt-4 block text-sm font-semibold text-text-secondary">
+              Theme mode
+              <select
+                value={draft.appearance.themeMode}
+                onChange={(event) => onChange({ ...draft, appearance: { ...draft.appearance, themeMode: event.target.value as ThemeMode } })}
+                className="mt-2 w-full rounded-md border border-border-medium bg-root px-3 py-2 text-sm text-text-primary outline-none transition focus:border-accent"
+              >
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+                <option value="system">System</option>
+              </select>
+            </label>
+          </section>
+
+          <section className="rounded-md border border-border-subtle bg-root/45 p-4">
+            <h3 className="font-heading text-xl text-text-primary">Project storage</h3>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <SettingsInput
+                label="Project clone root path"
+                value={draft.storage.cloneRootPath}
+                onChange={(value) => onChange({ ...draft, storage: { ...draft.storage, cloneRootPath: value } })}
+                placeholder="D:\\OpenRepoCopilot\\clones"
+              />
+              <SettingsInput
+                label="Knowledge graph export path"
+                value={draft.storage.graphExportPath}
+                onChange={(value) => onChange({ ...draft, storage: { ...draft.storage, graphExportPath: value } })}
+                placeholder="D:\\OpenRepoCopilot\\exports"
+              />
+            </div>
+          </section>
+
+          <section className="rounded-md border border-border-subtle bg-root/45 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h3 className="font-heading text-xl text-text-primary">Agent / model provider</h3>
+                <p className="mt-1 text-xs text-text-muted">
+                  API keys are read from environment variables or the local agent.env file only.
+                </p>
+              </div>
+              <span className={`w-fit rounded px-2 py-1 font-mono text-[10px] uppercase ${agentStatus.apiKeyConfigured ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-300"}`}>
+                {agentStatus.apiKeyConfigured ? "key configured" : "key missing"}
+              </span>
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <label className="block text-sm font-semibold text-text-secondary">
+                API provider
+                <select
+                  value={draft.agent.provider}
+                  onChange={(event) => applyProviderPreset(event.target.value as AgentProvider)}
+                  className="mt-2 w-full rounded-md border border-border-medium bg-root px-3 py-2 text-sm text-text-primary outline-none transition focus:border-accent"
+                >
+                  {providerPresets.map((preset) => (
+                    <option key={preset.id} value={preset.id}>{preset.label}</option>
+                  ))}
+                </select>
+              </label>
+              <SettingsInput
+                label="Model"
+                value={draft.agent.model}
+                onChange={(value) => onChange({ ...draft, agent: { ...draft.agent, model: value } })}
+                placeholder="glm-5.1"
+              />
+              <SettingsInput
+                label="Base URL"
+                value={draft.agent.baseUrl}
+                onChange={(value) => onChange({ ...draft, agent: { ...draft.agent, baseUrl: value } })}
+                placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1"
+              />
+              <SettingsInput
+                label="API key environment variable"
+                value={draft.agent.apiKeyEnv}
+                onChange={(value) => onChange({ ...draft, agent: { ...draft.agent, apiKeyEnv: value } })}
+                placeholder="DASHSCOPE_API_KEY"
+              />
+            </div>
+
+            <div className="mt-4 rounded-md border border-border-subtle bg-surface px-3 py-2 font-mono text-xs text-text-muted">
+              Key file: {agentStatus.apiKeyFilePath || "<OPENREPO_HOME>\\agent.env"}
+            </div>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={restoreActivePreset}
+                className="rounded-md border border-border-medium bg-elevated px-4 py-2 text-sm font-semibold text-text-secondary transition hover:text-text-primary"
+              >
+                Restore provider preset
+              </button>
+              <button
+                type="button"
+                onClick={onTestAgent}
+                disabled={testing}
+                className="rounded-md border border-border-medium bg-elevated px-4 py-2 text-sm font-semibold text-text-secondary transition hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {testing ? "Testing..." : "Test connection"}
+              </button>
+            </div>
+          </section>
+
+          <section className="rounded-md border border-border-subtle bg-root/45 p-4">
+            <h3 className="font-heading text-xl text-text-primary">Analysis runtime</h3>
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <label className="flex items-center gap-3 rounded-md border border-border-subtle bg-surface px-3 py-2 text-sm font-semibold text-text-secondary">
+                <input
+                  type="checkbox"
+                  checked={draft.agent.autoRunJobs}
+                  onChange={(event) => onChange({ ...draft, agent: { ...draft.agent, autoRunJobs: event.target.checked } })}
+                  className="h-4 w-4 accent-[var(--color-accent)]"
+                />
+                Auto-run queued jobs
+              </label>
+              <SettingsInput
+                label="Request timeout (ms)"
+                type="number"
+                value={String(draft.agent.requestTimeout)}
+                onChange={(value) => onChange({ ...draft, agent: { ...draft.agent, requestTimeout: Number(value) } })}
+                placeholder="120000"
+              />
+              <SettingsInput
+                label="Max concurrency"
+                type="number"
+                value={String(draft.agent.maxConcurrency)}
+                onChange={(value) => onChange({ ...draft, agent: { ...draft.agent, maxConcurrency: Number(value) } })}
+                placeholder="2"
+              />
+            </div>
+          </section>
         </div>
         <div className="mt-6 flex justify-end">
           <button
@@ -907,11 +1133,13 @@ function SettingsPanel({
 
 function SettingsInput({
   label,
+  type = "text",
   value,
   onChange,
   placeholder,
 }: {
   label: string;
+  type?: "text" | "number";
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
@@ -920,6 +1148,7 @@ function SettingsInput({
     <label className="block text-sm font-semibold text-text-secondary">
       {label}
       <input
+        type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}

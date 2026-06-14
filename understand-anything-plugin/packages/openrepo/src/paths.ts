@@ -13,6 +13,10 @@ export function settingsFile(home = getOpenRepoHome()): string {
   return path.join(home, "settings.json");
 }
 
+export function agentEnvFile(home = getOpenRepoHome()): string {
+  return path.join(home, "agent.env");
+}
+
 export function projectDir(projectId: string, home = getOpenRepoHome()): string {
   return path.join(projectsDir(home), projectId);
 }

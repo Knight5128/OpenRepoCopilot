@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { agentProviderPresets } from "./providers.js";
 import { OpenRepoStore } from "./store.js";
 
 type Next = () => void;
@@ -19,14 +20,23 @@ export function createOpenRepoApiMiddleware(store = new OpenRepoStore()) {
       }
 
       if (req.method === "GET" && pathname === "/api/settings") {
-        sendJson(res, 200, { settings: store.readSettings() });
+        sendJson(res, 200, settingsPayload(store));
         return;
       }
 
       if (req.method === "PUT" && pathname === "/api/settings") {
         const body = await readJson(req);
         if (!isRecord(body)) throw new Error("Expected JSON settings body.");
-        sendJson(res, 200, { settings: store.writeSettings(body) });
+        store.writeSettings(body);
+        sendJson(res, 200, settingsPayload(store));
+        return;
+      }
+
+      if (req.method === "POST" && pathname === "/api/agent/test") {
+        const body = await readJson(req);
+        const agent = isRecord(body) && isRecord(body.agent) ? body.agent : undefined;
+        await store.testAgentConnection(agent);
+        sendJson(res, 200, { ok: true });
         return;
       }
 
@@ -121,6 +131,14 @@ function sendJson(res: ServerResponse, statusCode: number, payload: unknown): vo
   res.statusCode = statusCode;
   res.setHeader("Content-Type", "application/json");
   res.end(JSON.stringify(payload));
+}
+
+function settingsPayload(store: OpenRepoStore): Record<string, unknown> {
+  return {
+    settings: store.readSettings(),
+    agentStatus: store.readAgentStatus(),
+    providerPresets: agentProviderPresets(),
+  };
 }
 
 async function readJson(req: IncomingMessage): Promise<unknown> {

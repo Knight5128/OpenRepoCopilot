@@ -50,10 +50,49 @@ export interface UploadedDocument {
 
 export type OpenRepoThemeMode = "light" | "dark" | "system";
 
-export interface OpenRepoSettings {
+export type OpenRepoAgentProvider =
+  | "dashscope"
+  | "zhipuai"
+  | "openai"
+  | "deepseek"
+  | "openrouter"
+  | "custom";
+
+export interface OpenRepoAppearanceSettings {
   themeMode: OpenRepoThemeMode;
-  agentApiBaseUrl: string;
-  agentApiKeyEnv: string;
+}
+
+export interface OpenRepoStorageSettings {
   cloneRootPath: string;
   graphExportPath: string;
+}
+
+export interface OpenRepoAgentSettings {
+  provider: OpenRepoAgentProvider;
+  model: string;
+  baseUrl: string;
+  apiKeyEnv: string;
+  autoRunJobs: boolean;
+  requestTimeout: number;
+  maxConcurrency: number;
+}
+
+export interface OpenRepoSettings {
+  appearance: OpenRepoAppearanceSettings;
+  storage: OpenRepoStorageSettings;
+  agent: OpenRepoAgentSettings;
+}
+
+export interface OpenRepoAgentProviderPreset {
+  id: OpenRepoAgentProvider;
+  label: string;
+  baseUrl: string;
+  model: string;
+  apiKeyEnv: string;
+}
+
+export interface OpenRepoAgentStatus {
+  apiKeyConfigured: boolean;
+  apiKeyFilePath: string;
+  activeApiKeyEnv: string;
 }

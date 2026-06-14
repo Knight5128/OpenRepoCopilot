@@ -117,6 +117,40 @@ Set `OPENREPO_HOME` to use another location:
 OPENREPO_HOME=/path/to/openrepo-data node understand-anything-plugin/packages/openrepo/dist/cli.js ui
 ```
 
+## Agent API Configuration
+
+OpenRepoCopilot defaults to GLM-5.1 through Alibaba Cloud Bailian / DashScope compatible mode:
+
+```text
+Provider: DashScope / Alibaba Bailian
+Base URL: https://dashscope.aliyuncs.com/compatible-mode/v1
+Model: glm-5.1
+API key env: DASHSCOPE_API_KEY
+```
+
+The workbench also includes presets for ZhipuAI, OpenAI, DeepSeek, OpenRouter, and custom OpenAI-compatible APIs. API keys are never stored in `settings.json` and should not be packaged into the app. Put them in the process environment or in:
+
+```text
+<OPENREPO_HOME>/agent.env
+```
+
+If `OPENREPO_HOME` is unset, the default Windows path is:
+
+```text
+%USERPROFILE%\.openrepo-copilot\agent.env
+```
+
+Example `agent.env`:
+
+```env
+DASHSCOPE_API_KEY=your-dashscope-api-key
+ZHIPUAI_API_KEY=your-zhipuai-api-key
+OPENAI_API_KEY=your-openai-api-key
+DEEPSEEK_API_KEY=your-deepseek-api-key
+OPENROUTER_API_KEY=your-openrouter-api-key
+OPENREPO_AGENT_API_KEY=your-custom-provider-api-key
+```
+
 Generated graph artifacts use the compatibility directory:
 
 ```text
