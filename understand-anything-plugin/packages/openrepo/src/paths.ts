@@ -33,6 +33,10 @@ export function jobFile(projectId: string, jobId: string, home = getOpenRepoHome
   return path.join(jobsDir(projectId, home), `${jobId}.json`);
 }
 
+export function jobLogFile(projectId: string, jobId: string, home = getOpenRepoHome()): string {
+  return path.join(jobsDir(projectId, home), `${jobId}.log`);
+}
+
 export function sourceDir(projectId: string, home = getOpenRepoHome()): string {
   return path.join(projectDir(projectId, home), "source");
 }

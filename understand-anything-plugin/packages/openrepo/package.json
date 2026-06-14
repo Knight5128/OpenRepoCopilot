@@ -20,6 +20,9 @@
     "build": "tsc",
     "test": "vitest run --config vitest.config.ts"
   },
+  "dependencies": {
+    "@understand-anything/core": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "^5.7.0",

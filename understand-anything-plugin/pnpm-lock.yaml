@@ -169,6 +169,10 @@ importers:
         version: 3.2.6(@types/debug@4.1.13)(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.32.0)(yaml@2.8.3)
 
   packages/openrepo:
+    dependencies:
+      '@understand-anything/core':
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
       '@types/node':
         specifier: ^22.0.0

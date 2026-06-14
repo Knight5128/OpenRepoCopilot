@@ -1,10 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { OpenRepoAnalysisWorker } from "./analysis-worker.js";
 import { agentProviderPresets } from "./providers.js";
 import { OpenRepoStore } from "./store.js";
 
 type Next = () => void;
 
 export function createOpenRepoApiMiddleware(store = new OpenRepoStore()) {
+  const worker = new OpenRepoAnalysisWorker(store);
   return async function openRepoApi(req: IncomingMessage, res: ServerResponse, next: Next): Promise<void> {
     const url = new URL(req.url ?? "/", "http://127.0.0.1");
     const { pathname } = url;
@@ -67,7 +69,9 @@ export function createOpenRepoApiMiddleware(store = new OpenRepoStore()) {
           return;
         }
         if (req.method === "POST" && action === "analysis-jobs") {
-          sendJson(res, 201, { job: store.createAnalysisJob(projectId) });
+          const job = store.createAnalysisJob(projectId);
+          if (store.readSettings().agent.autoRunJobs) worker.start(projectId);
+          sendJson(res, 201, { job });
           return;
         }
         if (req.method === "GET" && action === "graph") {
@@ -112,6 +116,11 @@ export function createOpenRepoApiMiddleware(store = new OpenRepoStore()) {
       const jobMatch = pathname.match(/^\/api\/jobs\/([^/]+)$/);
       if (req.method === "GET" && jobMatch) {
         sendJson(res, 200, { job: store.readJob(decodeURIComponent(jobMatch[1])) });
+        return;
+      }
+      if (req.method === "GET" && pathname.match(/^\/api\/jobs\/([^/]+)\/log$/)) {
+        const logMatch = pathname.match(/^\/api\/jobs\/([^/]+)\/log$/);
+        sendJson(res, 200, { log: store.readJobLog(decodeURIComponent(logMatch![1])) });
         return;
       }
       if (req.method === "DELETE" && jobMatch) {

@@ -24,6 +24,9 @@ interface OpenRepoJob {
   projectId: string;
   status: JobStatus;
   queuePosition?: number;
+  phase?: string;
+  progress?: number;
+  logPath?: string;
   commandHint: string;
   createdAt: string;
   updatedAt: string;
@@ -155,6 +158,16 @@ export default function OpenRepoWorkbench() {
   useEffect(() => {
     applyTheme(settings.appearance.themeMode);
   }, [settings.appearance.themeMode]);
+
+  useEffect(() => {
+    if (!Object.values(details).some(({ jobs }) => jobs.some((job) => job.status === "queued" || job.status === "in_progress"))) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      refresh().catch((err: unknown) => setError(errorMessage(err)));
+    }, 2500);
+    return () => window.clearInterval(timer);
+  }, [details, refresh]);
 
   const latestJobs = useMemo(() => {
     const result: Record<string, OpenRepoJob | undefined> = {};
@@ -743,6 +756,7 @@ function ProjectDetailPanel({
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Metric label="Latest job" value={latestJob ? latestJob.status.replace("_", " ") : "none"} />
+        <Metric label="Worker phase" value={latestJob?.phase ?? "idle"} />
         <Metric label="Source path" value={project.sourcePath} wide />
         <Metric label="Graph path" value={project.graphPath} wide />
       </div>
@@ -782,6 +796,11 @@ function ProjectDetailPanel({
               </p>
             </div>
           </div>
+          {latestJob?.logPath && (
+            <div className="mt-3 rounded-md border border-border-subtle bg-root px-3 py-2 font-mono text-xs text-text-muted">
+              Log: {latestJob.logPath}
+            </div>
+          )}
           {latestJob?.error && <p className="mt-3 text-xs text-red-300">{latestJob.error}</p>}
         </div>
       </section>
@@ -895,18 +914,18 @@ function analysisStatus(job: OpenRepoJob | undefined): {
   }
   if (job.status === "queued") {
     return {
-      title: "Waiting in the global queue",
+      title: job.phase ? `Waiting: ${job.phase}` : "Waiting in the global queue",
       badge: "queued",
-      progress: 15,
+      progress: job.progress ?? 15,
       badgeClass: statusClass(job.status),
       barClass: "bg-amber-400",
     };
   }
   if (job.status === "in_progress") {
     return {
-      title: "Analysis is running",
+      title: job.phase ? `Running: ${job.phase}` : "Analysis is running",
       badge: "in progress",
-      progress: 55,
+      progress: job.progress ?? 55,
       badgeClass: statusClass(job.status),
       barClass: "bg-sky-400",
     };

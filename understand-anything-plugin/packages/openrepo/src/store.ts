@@ -5,6 +5,7 @@ import {
   getOpenRepoHome,
   graphFile,
   jobFile,
+  jobLogFile,
   jobsDir,
   projectDir,
   projectFile,
@@ -185,10 +186,14 @@ export class OpenRepoStore {
       kind: project.type === "github_repo" ? "code" : "knowledge",
       status: "queued",
       queuePosition: this.nextQueuePosition(),
+      phase: "queued",
+      progress: 0,
+      logPath: jobLogFile(project.id, "pending", this.home),
       createdAt: now,
       updatedAt: now,
-      commandHint: `/openrepo-analyze ${projectId}`,
+      commandHint: "OpenRepoCopilot in-app analysis worker",
     };
+    job.logPath = jobLogFile(project.id, job.id, this.home);
     this.writeJob(job);
     this.writeProject({ ...project, latestJobId: job.id, updatedAt: now });
     return job;
@@ -217,15 +222,38 @@ export class OpenRepoStore {
       .filter((job) => job.status === "queued")
       .sort(compareQueueJobs)[0];
     if (!queued) throw new Error(`No queued analysis job for project: ${projectId}`);
-    return this.updateJob(queued.id, { status: "in_progress", startedAt: new Date().toISOString() });
+    return this.updateJob(queued.id, { status: "in_progress", phase: "starting", progress: 1, startedAt: new Date().toISOString() });
   }
 
   completeJob(jobId: string): OpenRepoJob {
-    return this.updateJob(jobId, { status: "completed", completedAt: new Date().toISOString() });
+    return this.updateJob(jobId, { status: "completed", phase: "completed", progress: 100, completedAt: new Date().toISOString() });
   }
 
   failJob(jobId: string, error: string): OpenRepoJob {
-    return this.updateJob(jobId, { status: "failed", completedAt: new Date().toISOString(), error });
+    return this.updateJob(jobId, { status: "failed", phase: "failed", progress: 100, completedAt: new Date().toISOString(), error });
+  }
+
+  updateJobStatus(jobId: string, patch: Partial<OpenRepoJob>): OpenRepoJob {
+    return this.updateJob(jobId, patch);
+  }
+
+  appendJobLog(jobId: string, line: string): void {
+    const job = this.readJob(jobId);
+    const file = job.logPath ?? jobLogFile(job.projectId, job.id, this.home);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.appendFileSync(file, `${new Date().toISOString()} ${line}\n`, "utf8");
+  }
+
+  readJobLog(jobId: string): string {
+    const job = this.readJob(jobId);
+    const file = job.logPath ?? jobLogFile(job.projectId, job.id, this.home);
+    return fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
+  }
+
+  writeProjectGraph(projectId: string, graph: unknown): void {
+    const file = graphFile(projectId, this.home);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, `${JSON.stringify(graph, null, 2)}\n`, "utf8");
   }
 
   deleteJob(jobId: string): void {
