@@ -78,7 +78,7 @@ Respond ONLY with the JSON object, no additional text.`;
 /**
  * Extracts a JSON block from an LLM response, handling markdown fences.
  */
-function extractJson(response: string): string {
+export function extractJson(response: string): string {
   // Try to extract from markdown code fences
   const fenceMatch = response.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
   if (fenceMatch) {

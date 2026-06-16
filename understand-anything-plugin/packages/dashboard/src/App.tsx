@@ -25,6 +25,7 @@ import { ThemePicker } from "./components/ThemePicker.tsx";
 import type { ThemeConfig } from "./themes/index.ts";
 import { I18nProvider, useI18n } from "./contexts/I18nContext.tsx";
 import OpenRepoWorkbench from "./OpenRepoWorkbench.tsx";
+import ChatFloating from "./components/ChatFloating";
 
 // Lazy-load heavy / optional components so they ship in separate chunks.
 const CodeViewer = lazy(() => import("./components/CodeViewer"));
@@ -685,6 +686,8 @@ function DashboardContent({
           <div className="absolute top-3 right-3 text-sm text-text-muted/60 pointer-events-none select-none">
             {t.common.pressKeyboard}
           </div>
+          {/* 仅在图表加载完成且非工作台模式时显示浮窗 */}
+          {graph && <ChatFloating />}
         </div>
 
         {/* Right sidebar — telescopes at narrower widths */}
