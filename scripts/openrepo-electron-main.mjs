@@ -2,6 +2,7 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
+import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, Menu, Tray, dialog, nativeImage, shell } from "electron";
@@ -10,18 +11,21 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const dashboardDir = path.join(repoRoot, "understand-anything-plugin", "packages", "dashboard");
 const appIcon = path.join(repoRoot, "assets", "openrepo-copilot-logo.ico");
 const trayIcon = path.join(repoRoot, "assets", "openrepo-copilot-tray.png");
-const dashboardUrl = process.env.OPENREPO_APP_URL ?? "http://127.0.0.1:5173/";
+const defaultDashboardPort = Number.parseInt(process.env.OPENREPO_APP_PORT ?? "5173", 10);
 
 let mainWindow = null;
 let tray = null;
 let dashboardProcess = null;
 let isQuitting = false;
+let dashboardUrl = "";
 
 app.setName("OpenRepoCopilot");
 
 app.whenReady()
   .then(async () => {
-    dashboardProcess = startDashboardServer();
+    const dashboardPort = await findAvailablePort(Number.isFinite(defaultDashboardPort) ? defaultDashboardPort : 5173);
+    dashboardUrl = `http://127.0.0.1:${dashboardPort}/`;
+    dashboardProcess = startDashboardServer(dashboardPort);
     await waitForUrl(dashboardUrl);
     createMainWindow();
     createTray();
@@ -46,8 +50,17 @@ app.on("window-all-closed", (event) => {
   if (!isQuitting) event.preventDefault();
 });
 
-function startDashboardServer() {
-  const { command, args } = pnpmInvocation(["--dir", dashboardDir, "dev", "--host", "127.0.0.1"]);
+function startDashboardServer(port) {
+  const { command, args } = pnpmInvocation([
+    "--dir",
+    dashboardDir,
+    "dev",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    String(port),
+    "--strictPort",
+  ]);
   appendLog(`[openrepo-copilot] Starting dashboard server: ${command} ${args.join(" ")}\n`);
 
   const child = spawn(command, args, {
@@ -190,6 +203,26 @@ function canConnect(url) {
 
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function findAvailablePort(startPort) {
+  return new Promise((resolve, reject) => {
+    const tryPort = (port) => {
+      const server = net.createServer();
+      server.unref();
+      server.once("error", (error) => {
+        if (error?.code === "EADDRINUSE" || error?.code === "EACCES") {
+          tryPort(port + 1);
+          return;
+        }
+        reject(error);
+      });
+      server.listen(port, "127.0.0.1", () => {
+        server.close(() => resolve(port));
+      });
+    };
+    tryPort(startPort);
+  });
 }
 
 function pnpmInvocation(args) {

@@ -130,9 +130,10 @@ function findInnoCompiler() {
   if (fromPath) return fromPath;
 
   const candidates = [
+    path.join(process.env.LOCALAPPDATA ?? "", "Programs", "Inno Setup 6", "ISCC.exe"),
     path.join(process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)", "Inno Setup 6", "ISCC.exe"),
     path.join(process.env.ProgramFiles ?? "C:\\Program Files", "Inno Setup 6", "ISCC.exe"),
-  ];
+  ].filter(Boolean);
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) return candidate;
   }
