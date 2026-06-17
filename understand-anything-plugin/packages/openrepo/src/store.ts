@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 import {
   getOpenRepoHome,
   graphFile,
@@ -27,6 +28,58 @@ import type {
   OpenRepoThemeMode,
   UploadedDocument,
 } from "./types.js";
+
+export const BUILTIN_NANOGPT_PROJECT_ID = "example-nanogpt";
+const BUILTIN_NANOGPT_JOB_ID = "example-nanogpt-analysis";
+const BUILTIN_NANOGPT_TIMESTAMP = "2026-06-17T05:56:18.560Z";
+
+const openRepoPackageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+export function isBuiltinProjectId(projectId: string): boolean {
+  return projectId === BUILTIN_NANOGPT_PROJECT_ID;
+}
+
+function builtinNanoGptRoot(): string {
+  return path.join(openRepoPackageRoot, "examples", "nanogpt");
+}
+
+function builtinNanoGptProject(): OpenRepoProject {
+  const root = builtinNanoGptRoot();
+  return {
+    id: BUILTIN_NANOGPT_PROJECT_ID,
+    name: "karpathy/nanoGPT",
+    type: "github_repo",
+    isBuiltin: true,
+    createdAt: BUILTIN_NANOGPT_TIMESTAMP,
+    updatedAt: BUILTIN_NANOGPT_TIMESTAMP,
+    sourcePath: root,
+    graphPath: path.join(root, ".understand-anything", "knowledge-graph.json"),
+    latestJobId: BUILTIN_NANOGPT_JOB_ID,
+    source: {
+      type: "github_repo",
+      url: "https://github.com/karpathy/nanoGPT",
+      owner: "karpathy",
+      repo: "nanoGPT",
+    },
+  };
+}
+
+function builtinNanoGptJob(): OpenRepoJob {
+  return {
+    id: BUILTIN_NANOGPT_JOB_ID,
+    projectId: BUILTIN_NANOGPT_PROJECT_ID,
+    kind: "code",
+    status: "completed",
+    queuePosition: 0,
+    phase: "completed",
+    progress: 100,
+    createdAt: BUILTIN_NANOGPT_TIMESTAMP,
+    updatedAt: BUILTIN_NANOGPT_TIMESTAMP,
+    startedAt: BUILTIN_NANOGPT_TIMESTAMP,
+    completedAt: BUILTIN_NANOGPT_TIMESTAMP,
+    commandHint: "Bundled OpenRepoCopilot example",
+  };
+}
 
 export interface OpenRepoStoreOptions {
   home?: string;
@@ -89,12 +142,14 @@ export class OpenRepoStore {
 
   listProjects(): OpenRepoProject[] {
     this.ensureHome();
-    return fs
+    const userProjects = fs
       .readdirSync(projectsDir(this.home), { withFileTypes: true })
       .filter((entry) => entry.isDirectory())
+      .filter((entry) => !isBuiltinProjectId(entry.name))
       .map((entry) => this.tryReadProject(entry.name))
       .filter((project): project is OpenRepoProject => project !== null)
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return [builtinNanoGptProject(), ...userProjects];
   }
 
   readProject(projectId: string): OpenRepoProject {
@@ -104,6 +159,7 @@ export class OpenRepoStore {
   }
 
   tryReadProject(projectId: string): OpenRepoProject | null {
+    if (isBuiltinProjectId(projectId)) return builtinNanoGptProject();
     const file = projectFile(projectId, this.home);
     if (!fs.existsSync(file)) return null;
     return JSON.parse(fs.readFileSync(file, "utf8")) as OpenRepoProject;
@@ -179,6 +235,9 @@ export class OpenRepoStore {
   }
 
   createAnalysisJob(projectId: string): OpenRepoJob {
+    if (isBuiltinProjectId(projectId)) {
+      throw new Error("Bundled example projects cannot be re-analyzed.");
+    }
     const project = this.readProject(projectId);
     const now = new Date().toISOString();
     const job: OpenRepoJob = {
@@ -201,6 +260,7 @@ export class OpenRepoStore {
   }
 
   listJobs(projectId: string): OpenRepoJob[] {
+    if (isBuiltinProjectId(projectId)) return [builtinNanoGptJob()];
     const dir = jobsDir(projectId, this.home);
     if (!fs.existsSync(dir)) return [];
     return fs
@@ -211,6 +271,7 @@ export class OpenRepoStore {
   }
 
   readJob(jobId: string): OpenRepoJob {
+    if (jobId === BUILTIN_NANOGPT_JOB_ID) return builtinNanoGptJob();
     for (const project of this.listProjects()) {
       const file = jobFile(project.id, jobId, this.home);
       if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, "utf8")) as OpenRepoJob;
@@ -246,6 +307,7 @@ export class OpenRepoStore {
   }
 
   readJobLog(jobId: string): string {
+    if (jobId === BUILTIN_NANOGPT_JOB_ID) return "";
     const job = this.readJob(jobId);
     const file = job.logPath ?? jobLogFile(job.projectId, job.id, this.home);
     return fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
@@ -258,6 +320,9 @@ export class OpenRepoStore {
   }
 
   deleteJob(jobId: string): void {
+    if (jobId === BUILTIN_NANOGPT_JOB_ID) {
+      throw new Error("Bundled example jobs cannot be deleted.");
+    }
     const job = this.readJob(jobId);
     const file = jobFile(job.projectId, job.id, this.home);
     fs.unlinkSync(file);
@@ -272,6 +337,9 @@ export class OpenRepoStore {
   }
 
   deleteProject(projectId: string): void {
+    if (isBuiltinProjectId(projectId)) {
+      throw new Error("Bundled example projects cannot be deleted.");
+    }
     const project = this.readProject(projectId);
     const activeJob = this.listJobs(projectId).find((job) => job.status === "queued" || job.status === "in_progress");
     if (activeJob) {
@@ -289,16 +357,26 @@ export class OpenRepoStore {
       seen.add(id);
       return true;
     });
-    return orderedIds.map((id, index) => this.updateJob(id, { queuePosition: index + 1 }));
+    return orderedIds.map((id, index) =>
+      id === BUILTIN_NANOGPT_JOB_ID ? this.readJob(id) : this.updateJob(id, { queuePosition: index + 1 }),
+    );
   }
 
   readGraph(projectId: string): unknown {
+    if (isBuiltinProjectId(projectId)) {
+      return JSON.parse(fs.readFileSync(builtinNanoGptProject().graphPath, "utf8"));
+    }
     const file = graphFile(projectId, this.home);
     if (!fs.existsSync(file)) throw new Error("No knowledge graph found for this project.");
     return JSON.parse(fs.readFileSync(file, "utf8"));
   }
 
   readOptionalJson(projectId: string, fileName: string): unknown | null {
+    if (isBuiltinProjectId(projectId)) {
+      const file = path.join(builtinNanoGptRoot(), ".understand-anything", fileName);
+      if (!fs.existsSync(file)) return null;
+      return JSON.parse(fs.readFileSync(file, "utf8"));
+    }
     const file = path.join(projectDir(projectId, this.home), ".understand-anything", fileName);
     if (!fs.existsSync(file)) return null;
     return JSON.parse(fs.readFileSync(file, "utf8"));

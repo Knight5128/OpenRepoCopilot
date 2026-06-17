@@ -18,6 +18,7 @@ interface OpenRepoProject {
   id: string;
   name: string;
   type: ProjectType;
+  isBuiltin?: boolean;
   createdAt: string;
   updatedAt: string;
   sourcePath: string;
@@ -918,22 +919,26 @@ function ProjectDetailPanel({
           <p className="mt-2 font-mono text-xs text-text-muted">{sourceLabel(project, t)}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={onDeleteProject}
-            disabled={busyAction === `delete-project:${project.id}`}
-            className="rounded-md border border-red-500/30 bg-red-500/5 px-4 py-2.5 text-sm font-semibold text-red-400 transition hover:border-red-500/60 hover:bg-red-500/10 disabled:cursor-wait disabled:opacity-50"
-          >
-            {busyAction === `delete-project:${project.id}` ? t.project.deleting : t.project.deleteProject}
-          </button>
-          <button
-            type="button"
-            onClick={onQueue}
-            disabled={busy}
-            className="rounded-md border border-border-medium bg-elevated px-4 py-2.5 text-sm font-semibold text-text-secondary transition hover:text-text-primary disabled:opacity-50"
-          >
-            {busy ? t.project.starting : t.project.beginAnalysis}
-          </button>
+          {!project.isBuiltin && (
+            <>
+              <button
+                type="button"
+                onClick={onDeleteProject}
+                disabled={busyAction === `delete-project:${project.id}`}
+                className="rounded-md border border-red-500/30 bg-red-500/5 px-4 py-2.5 text-sm font-semibold text-red-400 transition hover:border-red-500/60 hover:bg-red-500/10 disabled:cursor-wait disabled:opacity-50"
+              >
+                {busyAction === `delete-project:${project.id}` ? t.project.deleting : t.project.deleteProject}
+              </button>
+              <button
+                type="button"
+                onClick={onQueue}
+                disabled={busy}
+                className="rounded-md border border-border-medium bg-elevated px-4 py-2.5 text-sm font-semibold text-text-secondary transition hover:text-text-primary disabled:opacity-50"
+              >
+                {busy ? t.project.starting : t.project.beginAnalysis}
+              </button>
+            </>
+          )}
           {latestJob?.status === "completed" ? (
             <a
               href={`/?project=${encodeURIComponent(project.id)}`}

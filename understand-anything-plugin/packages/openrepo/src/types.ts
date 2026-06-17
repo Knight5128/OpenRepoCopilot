@@ -21,6 +21,7 @@ export interface OpenRepoProject {
   id: string;
   name: string;
   type: OpenRepoProjectType;
+  isBuiltin?: boolean;
   createdAt: string;
   updatedAt: string;
   sourcePath: string;

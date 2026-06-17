@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { OpenRepoAnalysisWorker } from "./analysis-worker.js";
 import { agentProviderPresets } from "./providers.js";
-import { OpenRepoStore } from "./store.js";
+import { OpenRepoStore, isBuiltinProjectId } from "./store.js";
 import { runGraphChatAgent } from '@understand-anything/core/graph-chat';
 import { createAgentClient } from './agent-client.js';
 import { projectDir } from './paths.js';
@@ -72,11 +72,17 @@ export function createOpenRepoApiMiddleware(store = new OpenRepoStore()) {
           return;
         }
         if (req.method === "DELETE" && !action) {
+          if (isBuiltinProjectId(projectId)) {
+            throw new Error("Bundled example projects cannot be deleted.");
+          }
           store.deleteProject(projectId);
           sendJson(res, 200, { ok: true });
           return;
         }
         if (req.method === "POST" && action === "analysis-jobs") {
+          if (isBuiltinProjectId(projectId)) {
+            throw new Error("Bundled example projects cannot be re-analyzed.");
+          }
           const job = store.createAnalysisJob(projectId);
           if (store.readSettings().agent.autoRunJobs) worker.start(projectId);
           sendJson(res, 201, { job });

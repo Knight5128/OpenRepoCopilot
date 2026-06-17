@@ -6,7 +6,7 @@ import { OpenAICompatibleAgentClient, chatCompletionsUrl } from "./agent-client.
 import { parseGitHubRepoUrl } from "./github.js";
 import { assertSupportedDocument, convertDocumentToMarkdown } from "./documents.js";
 import { AGENT_PROVIDER_PRESETS } from "./providers.js";
-import { OpenRepoStore } from "./store.js";
+import { BUILTIN_NANOGPT_PROJECT_ID, OpenRepoStore } from "./store.js";
 
 const tempDirs: string[] = [];
 
@@ -114,7 +114,7 @@ describe("OpenRepoStore", () => {
     const completed = store.completeJob(job.id);
 
     expect(project.id).toBe("owner-repo");
-    expect(store.listProjects()).toHaveLength(1);
+    expect(store.listProjects().filter((item) => item.id === project.id)).toHaveLength(1);
     expect(job.status).toBe("queued");
     expect(claimed.status).toBe("in_progress");
     expect(completed.status).toBe("completed");
@@ -145,7 +145,7 @@ describe("OpenRepoStore", () => {
     store.deleteJob(job.id);
     store.deleteProject(project.id);
 
-    expect(store.listProjects()).toHaveLength(0);
+    expect(store.listProjects().map((item) => item.id)).not.toContain(project.id);
     expect(() => store.readProject(project.id)).toThrow(/Project not found/);
   });
 
@@ -157,6 +157,20 @@ describe("OpenRepoStore", () => {
 
     expect(project.type).toBe("document_kb");
     expect(fs.existsSync(path.join(project.sourcePath, "knowledge.md"))).toBe(true);
+  });
+
+  it("exposes the bundled nanoGPT project example", () => {
+    const store = new OpenRepoStore({ home: tempHome() });
+    const project = store.readProject(BUILTIN_NANOGPT_PROJECT_ID);
+    const jobs = store.listJobs(BUILTIN_NANOGPT_PROJECT_ID);
+    const graph = store.readGraph(BUILTIN_NANOGPT_PROJECT_ID) as { project: { name: string } };
+    const source = store.readSourceFile(BUILTIN_NANOGPT_PROJECT_ID, "model.py");
+
+    expect(store.listProjects().map((item) => item.id)).toContain(BUILTIN_NANOGPT_PROJECT_ID);
+    expect(project.name).toBe("nanoGPT Example");
+    expect(jobs[0]).toMatchObject({ status: "completed", progress: 100 });
+    expect(graph.project.name).toBe("nanoGPT");
+    expect(source.content).toContain("class GPT");
   });
 });
 
