@@ -5,14 +5,13 @@ import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const source = path.join(repoRoot, "assets", "openrepo-copilot-logo.svg");
 const png = path.join(repoRoot, "assets", "openrepo-copilot-logo.png");
+const source = png;
 const trayPng = path.join(repoRoot, "assets", "openrepo-copilot-tray.png");
 const ico = path.join(repoRoot, "assets", "openrepo-copilot-logo.ico");
 
 const icoSizes = [16, 24, 32, 48, 64, 128, 256];
 
-await sharp(source).resize(1024, 1024).png().toFile(png);
 await sharp(source).resize(32, 32).png().toFile(trayPng);
 
 const pngImages = await Promise.all(
@@ -23,7 +22,6 @@ const pngImages = await Promise.all(
 );
 
 fs.writeFileSync(ico, createIco(pngImages));
-console.log(`Wrote ${path.relative(repoRoot, png)}`);
 console.log(`Wrote ${path.relative(repoRoot, trayPng)}`);
 console.log(`Wrote ${path.relative(repoRoot, ico)}`);
 
