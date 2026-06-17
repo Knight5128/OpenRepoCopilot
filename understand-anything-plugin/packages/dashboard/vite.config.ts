@@ -198,6 +198,7 @@ export default defineConfig({
       "@understand-anything/core/schema": path.resolve(__dirname, "../core/dist/schema.js"),
       "@understand-anything/core/search": path.resolve(__dirname, "../core/dist/search.js"),
       "@understand-anything/core/types": path.resolve(__dirname, "../core/dist/types.js"),
+      "@understand-anything/core/graph-chat": path.resolve(__dirname, "../core/dist/graph-chat.js"),
     },
   },
 

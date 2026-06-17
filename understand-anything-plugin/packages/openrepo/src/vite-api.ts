@@ -2,6 +2,9 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { OpenRepoAnalysisWorker } from "./analysis-worker.js";
 import { agentProviderPresets } from "./providers.js";
 import { OpenRepoStore } from "./store.js";
+import { runGraphChatAgent } from '@understand-anything/core/graph-chat';
+import { createAgentClient } from './agent-client.js';
+import { projectDir } from './paths.js';
 
 type Next = () => void;
 
@@ -118,6 +121,58 @@ export function createOpenRepoApiMiddleware(store = new OpenRepoStore()) {
         return;
       }
 
+      // ─── Agent 聊天接口 ───
+      if (req.method === "POST" && pathname === "/api/agent/chat") {
+        const body = await readJson(req);
+        if (!isRecord(body) || typeof body.projectId !== "string" || typeof body.message !== "string") {
+          sendJson(res, 400, { error: "Missing or invalid projectId/message." });
+          return;
+        }
+
+        const { projectId, message } = body;
+
+        try {
+          // 1. 验证项目存在
+          const project = store.readProject(projectId);
+
+          // 2. 获取项目根目录（包含 .understand-anything 的父目录）
+          const root = projectDir(projectId, store.home);
+
+          // 3. 创建 Agent 客户端（自动从 agent.env 或环境变量读取 API Key）
+          const settings = store.readSettings();
+          const agentClient = createAgentClient(settings.agent, store.home);
+
+          // 4. 构造 llmCall 函数，适配 runGraphChatAgent 的签名
+          const llmCall = async (prompt: string): Promise<string> => {
+            const result = await agentClient.createChatCompletion({
+              messages: [{ role: "user", content: prompt }],
+              temperature: 0.3,
+              maxTokens: 4096,
+            });
+            return result;
+          };
+
+          // 5. 调用 Agent 核心逻辑
+          const result = await runGraphChatAgent(
+            {
+              projectRoot: root,
+              query: message,
+              topK: 15,
+              hop: 2,
+            },
+            llmCall
+          );
+
+          // 6. 返回结果
+          sendJson(res, 200, { reply: result.answer });
+          return;
+        } catch (error) {
+          const errMsg = error instanceof Error ? error.message : String(error);
+          sendJson(res, 500, { error: errMsg });
+          return;
+        }
+      }
+
       const jobMatch = pathname.match(/^\/api\/jobs\/([^/]+)$/);
       if (req.method === "GET" && jobMatch) {
         sendJson(res, 200, { job: store.readJob(decodeURIComponent(jobMatch[1])) });
@@ -133,6 +188,7 @@ export function createOpenRepoApiMiddleware(store = new OpenRepoStore()) {
         sendJson(res, 200, { ok: true });
         return;
       }
+
 
       sendJson(res, 404, { error: "Not found." });
     } catch (error) {
