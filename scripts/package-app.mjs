@@ -17,6 +17,10 @@ const distDirs = [
   "understand-anything-plugin/packages/dashboard/dist",
 ];
 
+const extraPackageDirs = [
+  "understand-anything-plugin/packages/openrepo/examples/nanogpt/.understand-anything",
+];
+
 main();
 
 function main() {
@@ -32,6 +36,14 @@ function main() {
 
   for (const file of gitFiles()) {
     copyFile(file, path.join(stageDir, file));
+  }
+
+  for (const dir of extraPackageDirs) {
+    const source = path.join(repoRoot, dir);
+    if (!fs.existsSync(source)) {
+      throw new Error(`Expected packaged resource not found: ${dir}`);
+    }
+    copyDirectory(source, path.join(stageDir, dir));
   }
 
   for (const dir of distDirs) {
@@ -102,6 +114,7 @@ function writeManifest() {
     createdAt: new Date().toISOString(),
     source: "OpenRepoCopilot",
     buildOutputs: distDirs,
+    bundledResources: extraPackageDirs,
     defaultAgent: {
       provider: "dashscope",
       baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
