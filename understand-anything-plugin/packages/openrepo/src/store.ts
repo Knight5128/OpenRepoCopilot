@@ -21,6 +21,7 @@ import type {
   OpenRepoAgentSettings,
   OpenRepoAgentStatus,
   OpenRepoJob,
+  OpenRepoLanguage,
   OpenRepoProject,
   OpenRepoSettings,
   OpenRepoThemeMode,
@@ -411,6 +412,7 @@ export function defaultSettings(home: string): OpenRepoSettings {
   return {
     appearance: {
       themeMode: "system",
+      language: "en",
     },
     storage: {
       cloneRootPath: path.join(home, "clones"),
@@ -436,6 +438,7 @@ export function normalizeSettings(input: Record<string, unknown>, home: string):
   return {
     appearance: {
       themeMode: normalizeThemeMode(appearanceInput.themeMode ?? input.themeMode, defaults.appearance.themeMode),
+      language: normalizeLanguage(appearanceInput.language ?? input.language, defaults.appearance.language),
     },
     storage: {
       cloneRootPath: path.resolve(String(storageInput.cloneRootPath ?? input.cloneRootPath ?? defaults.storage.cloneRootPath)),
@@ -468,6 +471,10 @@ function normalizeAgentSettings(input: Record<string, unknown>, _home: string): 
 
 function normalizeThemeMode(input: unknown, fallback: OpenRepoThemeMode): OpenRepoThemeMode {
   return input === "light" || input === "dark" || input === "system" ? input : fallback;
+}
+
+function normalizeLanguage(input: unknown, fallback: OpenRepoLanguage): OpenRepoLanguage {
+  return input === "zh" || input === "en" || input === "ja" ? input : fallback;
 }
 
 function recordValue(input: unknown): Record<string, unknown> {

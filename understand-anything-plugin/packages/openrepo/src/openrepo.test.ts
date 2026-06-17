@@ -60,6 +60,7 @@ describe("OpenRepoStore", () => {
     const store = new OpenRepoStore({ home: tempHome() });
     const settings = store.readSettings();
 
+    expect(settings.appearance.language).toBe("en");
     expect(settings.agent.provider).toBe("dashscope");
     expect(settings.agent.model).toBe("glm-5.1");
     expect(settings.agent.baseUrl).toBe("https://dashscope.aliyuncs.com/compatible-mode/v1");
@@ -81,6 +82,7 @@ describe("OpenRepoStore", () => {
     const settings = new OpenRepoStore({ home }).readSettings();
 
     expect(settings.appearance.themeMode).toBe("dark");
+    expect(settings.appearance.language).toBe("en");
     expect(settings.agent.baseUrl).toBe("https://example.test/v1");
     expect(settings.agent.apiKeyEnv).toBe("EXAMPLE_API_KEY");
     expect(settings.storage.cloneRootPath).toBe(path.join(home, "legacy-clones"));

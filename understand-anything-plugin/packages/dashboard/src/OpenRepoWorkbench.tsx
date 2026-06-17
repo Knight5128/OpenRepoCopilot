@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
+import {
+  resolveWorkbenchLanguage,
+  workbenchLanguageOptions,
+  workbenchText,
+  type WorkbenchCopy,
+  type WorkbenchLanguage,
+} from "./workbench-i18n";
 
 type ProjectType = "github_repo" | "document_kb";
 type JobStatus = "queued" | "in_progress" | "completed" | "failed";
@@ -46,6 +53,7 @@ interface ProjectDetails {
 interface OpenRepoSettings {
   appearance: {
     themeMode: ThemeMode;
+    language: WorkbenchLanguage;
   };
   storage: {
     cloneRootPath: string;
@@ -85,6 +93,7 @@ interface SettingsResponse {
 const fallbackSettings: OpenRepoSettings = {
   appearance: {
     themeMode: "system",
+    language: "en",
   },
   storage: {
     cloneRootPath: "",
@@ -158,7 +167,7 @@ export default function OpenRepoWorkbench() {
     setNotice(null);
     try {
       await refresh();
-      setNotice("Project list refreshed.");
+      setNotice(t.notices.projectListRefreshed);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -220,6 +229,8 @@ export default function OpenRepoWorkbench() {
 
   const selectedProject = selectedProjectId ? details[selectedProjectId]?.project : undefined;
   const selectedJobs = selectedProjectId ? details[selectedProjectId]?.jobs ?? [] : [];
+  const language = resolveWorkbenchLanguage(settings.appearance.language);
+  const t = workbenchText(language);
 
   function showCreate() {
     setView("create");
@@ -247,7 +258,7 @@ export default function OpenRepoWorkbench() {
       await refresh();
       setSelectedProjectId(data.project.id);
       setView("project");
-      setNotice("Repository project created.");
+      setNotice(t.notices.repositoryProjectCreated);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -258,7 +269,7 @@ export default function OpenRepoWorkbench() {
   async function createDocumentProject(event: FormEvent) {
     event.preventDefault();
     if (!documentFiles || documentFiles.length === 0) {
-      setError("Choose at least one document.");
+      setError(t.notices.chooseAtLeastOneDocument);
       return;
     }
     setBusy("documents");
@@ -279,7 +290,7 @@ export default function OpenRepoWorkbench() {
       await refresh();
       setSelectedProjectId(data.project.id);
       setView("project");
-      setNotice("Document project created.");
+      setNotice(t.notices.documentProjectCreated);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -294,7 +305,7 @@ export default function OpenRepoWorkbench() {
     try {
       await api(`/api/projects/${projectId}/analysis-jobs`, { method: "POST", body: "{}" });
       await refresh();
-      setNotice("Analysis job added to the global queue.");
+      setNotice(t.notices.analysisQueued);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -309,7 +320,7 @@ export default function OpenRepoWorkbench() {
     try {
       await api(`/api/jobs/${encodeURIComponent(jobId)}`, { method: "DELETE" });
       await refresh();
-      setNotice("Analysis job removed from the global queue.");
+      setNotice(t.notices.analysisJobRemoved);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -319,7 +330,7 @@ export default function OpenRepoWorkbench() {
 
   async function deleteProject(project: OpenRepoProject) {
     const confirmed = window.confirm(
-      `Delete "${project.name}" from OpenRepoCopilot?\n\nThis removes its project record, analysis jobs, and generated graph. Source files stored outside the OpenRepoCopilot project directory will be kept.`,
+      t.project.deleteProjectConfirm(project.name),
     );
     if (!confirmed) return;
 
@@ -331,7 +342,7 @@ export default function OpenRepoWorkbench() {
       setSelectedProjectId(null);
       setView("overview");
       await refresh();
-      setNotice("Project deleted.");
+      setNotice(t.notices.projectDeleted);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -358,7 +369,7 @@ export default function OpenRepoWorkbench() {
         body: JSON.stringify({ jobIds: nextJobs.map((job) => job.id) }),
       });
       await refresh();
-      setNotice("Global analysis queue reordered.");
+      setNotice(t.notices.queueReordered);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -403,7 +414,7 @@ export default function OpenRepoWorkbench() {
       setAgentStatus(data.agentStatus);
       setProviderPresets(data.providerPresets);
       applyTheme(data.settings.appearance.themeMode);
-      setNotice("Settings saved.");
+      setNotice(workbenchText(data.settings.appearance.language).notices.settingsSaved);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -420,7 +431,7 @@ export default function OpenRepoWorkbench() {
         method: "POST",
         body: JSON.stringify({ agent: settingsDraft.agent }),
       });
-      setNotice("Agent connection test passed.");
+      setNotice(t.notices.agentConnectionPassed);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -437,15 +448,15 @@ export default function OpenRepoWorkbench() {
               type="button"
               onClick={() => setSidebarCollapsed((value) => !value)}
               className="grid h-10 w-10 shrink-0 place-items-center rounded-md border border-border-medium bg-elevated font-mono text-sm text-text-secondary transition hover:text-text-primary"
-              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              title={sidebarCollapsed ? t.common.expandSidebar : t.common.collapseSidebar}
+              aria-label={sidebarCollapsed ? t.common.expandSidebar : t.common.collapseSidebar}
             >
               <ChevronIcon direction={sidebarCollapsed ? "right" : "left"} />
             </button>
             {!sidebarCollapsed && (
               <button type="button" onClick={() => setView("overview")} className="min-w-0 text-left">
                 <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-accent">OpenRepoCopilot</p>
-                <p className="truncate font-heading text-xl text-text-primary">Workbench</p>
+                <p className="truncate font-heading text-xl text-text-primary">{t.common.workbench}</p>
               </button>
             )}
           </div>
@@ -457,32 +468,32 @@ export default function OpenRepoWorkbench() {
               className={`flex items-center justify-center rounded-md bg-accent text-sm font-bold text-black transition hover:bg-accent-bright ${
                 sidebarCollapsed ? "h-10 w-10 p-0" : "w-full gap-2 px-3 py-2.5"
               }`}
-              aria-label="Create new project"
-              title="创建新项目"
+              aria-label={t.common.createNewProject}
+              title={t.common.createNewProject}
             >
               <PlusIcon />
-              {!sidebarCollapsed && <span>创建新项目</span>}
+              {!sidebarCollapsed && <span>{t.common.createNewProject}</span>}
             </button>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
             {!sidebarCollapsed && (
               <div className="mb-2 flex items-center justify-between">
-                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted">Projects</p>
+                <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-text-muted">{t.common.projects}</p>
                 <button
                   type="button"
                   onClick={refreshProjects}
                   disabled={busy === "refresh"}
                   className="rounded border border-border-subtle px-2 py-1 text-[11px] text-text-muted transition hover:text-text-primary disabled:cursor-wait disabled:opacity-60"
                 >
-                  {busy === "refresh" ? "Refreshing..." : "Refresh"}
+                  {busy === "refresh" ? t.common.refreshing : t.common.refresh}
                 </button>
               </div>
             )}
             <div className="space-y-2">
               {projects.length === 0 ? (
                 <div className={`rounded-md border border-dashed border-border-subtle px-3 py-6 text-center text-xs text-text-muted ${sidebarCollapsed ? "hidden" : ""}`}>
-                  No projects yet.
+                  {t.common.noProjects}
                 </div>
               ) : (
                 projects.map((project) => (
@@ -507,10 +518,10 @@ export default function OpenRepoWorkbench() {
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-semibold text-text-primary">{project.name}</span>
                           <span className="mt-1 flex items-center gap-2">
-                            <span className="truncate font-mono text-[10px] text-text-muted">{sourceLabel(project)}</span>
+                            <span className="truncate font-mono text-[10px] text-text-muted">{sourceLabel(project, t)}</span>
                             {latestJobs[project.id] && (
                               <span className={`rounded px-1.5 py-0.5 font-mono text-[9px] uppercase ${statusClass(latestJobs[project.id]!.status)}`}>
-                                {latestJobs[project.id]!.status.replace("_", " ")}
+                                {statusLabel(latestJobs[project.id]!.status, t)}
                               </span>
                             )}
                           </span>
@@ -535,8 +546,8 @@ export default function OpenRepoWorkbench() {
                       className={`grid h-9 place-items-center rounded transition ${
                         settings.appearance.themeMode === mode ? "bg-accent text-black" : "text-text-muted hover:text-text-primary"
                       }`}
-                      title={`${themeModeLabel(mode)} theme`}
-                      aria-label={`Use ${themeModeLabel(mode)} theme`}
+                      title={t.common.themeTitle(mode)}
+                      aria-label={t.common.useTheme(mode)}
                     >
                       <ThemeIcon mode={mode} />
                     </button>
@@ -548,7 +559,7 @@ export default function OpenRepoWorkbench() {
                   className="flex w-full items-center justify-center gap-2 rounded-md border border-border-medium bg-elevated px-3 py-2 text-sm font-semibold text-text-secondary transition hover:border-accent/40 hover:text-text-primary"
                 >
                   <SettingsIcon />
-                  {view === "settings" ? "返回工作台" : "全局设置"}
+                  {view === "settings" ? t.common.backToWorkbench : t.common.globalSettings}
                 </button>
               </div>
             ) : (
@@ -557,8 +568,8 @@ export default function OpenRepoWorkbench() {
                   type="button"
                   onClick={() => updateThemeMode(nextThemeMode(settings.appearance.themeMode))}
                   className="grid h-10 w-10 place-items-center rounded-md border border-border-medium bg-elevated text-text-secondary transition hover:border-accent/40 hover:text-text-primary"
-                  title={`Theme: ${themeModeLabel(settings.appearance.themeMode)}. Click to switch.`}
-                  aria-label={`Current theme is ${themeModeLabel(settings.appearance.themeMode)}. Switch theme.`}
+                  title={t.common.currentThemeSwitch(settings.appearance.themeMode)}
+                  aria-label={t.common.currentThemeSwitch(settings.appearance.themeMode)}
                 >
                   <ThemeIcon mode={settings.appearance.themeMode} />
                 </button>
@@ -566,8 +577,8 @@ export default function OpenRepoWorkbench() {
                   type="button"
                   onClick={() => setView((current) => current === "settings" ? "overview" : "settings")}
                   className="grid h-10 w-10 place-items-center rounded-md border border-border-medium bg-elevated text-text-secondary transition hover:border-accent/40 hover:text-text-primary"
-                  title={view === "settings" ? "Back to workbench" : "Global settings"}
-                  aria-label={view === "settings" ? "Back to workbench" : "Global settings"}
+                  title={view === "settings" ? t.common.backToWorkbench : t.common.globalSettings}
+                  aria-label={view === "settings" ? t.common.backToWorkbench : t.common.globalSettings}
                 >
                   <SettingsIcon />
                 </button>
@@ -596,8 +607,7 @@ export default function OpenRepoWorkbench() {
 
             {view === "overview" && (
               <OverviewPanel
-                projectCount={projects.length}
-                settings={settings}
+                t={t}
                 onCreate={showCreate}
                 onToggleSidebar={() => setSidebarCollapsed((current) => !current)}
               />
@@ -610,6 +620,7 @@ export default function OpenRepoWorkbench() {
                 documentFiles={documentFiles}
                 documentName={documentName}
                 githubUrl={githubUrl}
+                t={t}
                 onCreateDocument={createDocumentProject}
                 onCreateGithub={createGithubProject}
                 onDocumentFilesChange={setDocumentFiles}
@@ -626,6 +637,7 @@ export default function OpenRepoWorkbench() {
                 globalJobs={globalJobs}
                 jobs={selectedJobs}
                 project={selectedProject}
+                t={t}
                 onDeleteProject={() => deleteProject(selectedProject)}
                 onDeleteJob={deleteAnalysisJob}
                 onQueue={() => queueAnalysis(selectedProject.id)}
@@ -640,6 +652,7 @@ export default function OpenRepoWorkbench() {
                 providerPresets={providerPresets}
                 draft={settingsDraft}
                 testing={busy === "agent-test"}
+                t={t}
                 onBack={() => setView("overview")}
                 onChange={setSettingsDraft}
                 onTestAgent={testAgentConnection}
@@ -654,13 +667,11 @@ export default function OpenRepoWorkbench() {
 }
 
 function OverviewPanel({
-  projectCount,
-  settings,
+  t,
   onCreate,
   onToggleSidebar,
 }: {
-  projectCount: number;
-  settings: OpenRepoSettings;
+  t: WorkbenchCopy;
   onCreate: () => void;
   onToggleSidebar: () => void;
 }) {
@@ -669,45 +680,14 @@ function OverviewPanel({
       <div className="w-full">
         <p className="mb-4 font-mono text-xs uppercase tracking-[0.24em] text-accent">OpenRepoCopilot</p>
         <h1 className="font-heading text-4xl font-semibold leading-[1.12] text-text-primary sm:text-5xl xl:whitespace-nowrap">
-          Repository and knowledge graph workbench
+          {t.overview.title}
         </h1>
 
         <div className="mt-7 grid items-center gap-10 2xl:grid-cols-[minmax(720px,1.08fr)_minmax(430px,0.82fr)]">
           <div className="max-w-4xl">
-          <p className="mt-5 font-heading text-2xl font-semibold leading-snug text-accent sm:text-3xl">
-            让任何陌生代码库，一看就懂
-          </p>
           <p className="mt-5 max-w-2xl text-base leading-7 text-text-secondary">
-            从代码结构、模块关系到关键概念，在本地完成仓库分析并生成可探索的知识图谱，
-            帮助你更快理解、检索和协作。
+            {t.overview.description}
           </p>
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
-            <OverviewStatusCard
-              accent="emerald"
-              badge={projectCount > 0 ? "Ready" : "Waiting"}
-              description={projectCount > 0 ? "本地项目已就绪，可开始知识图谱探索" : "创建本地项目后即可开始分析"}
-              icon="projects"
-              title="项目总览"
-              value={`${projectCount} 个仓库`}
-            />
-            <OverviewStatusCard
-              accent="blue"
-              badge={themeModeLabel(settings.appearance.themeMode)}
-              description={themeModeDescription(settings.appearance.themeMode)}
-              icon="theme"
-              themeMode={settings.appearance.themeMode}
-              title="当前主题"
-              value={themeModeDisplayValue(settings.appearance.themeMode)}
-            />
-            <OverviewStatusCard
-              accent="cyan"
-              badge="Local"
-              description="代码解析与图谱数据保存在本地环境"
-              icon="storage"
-              title="数据存储"
-              value="本地优先"
-            />
-          </div>
           <div className="mt-8 flex flex-wrap gap-3">
             <button
               type="button"
@@ -715,127 +695,27 @@ function OverviewPanel({
               className="flex items-center gap-2 rounded-md bg-accent px-5 py-3 text-sm font-bold text-black transition hover:bg-accent-bright"
             >
               <PlusIcon />
-              创建新项目
+              {t.common.createNewProject}
             </button>
             <button
               type="button"
               onClick={onToggleSidebar}
               className="flex items-center gap-2 rounded-md border border-border-medium bg-elevated px-5 py-3 text-sm font-semibold text-text-secondary transition hover:border-accent hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
-              aria-label="切换侧边栏"
+              aria-label={t.overview.toggleSidebar}
             >
               <ChevronIcon direction="right" />
-              从左侧选择项目开始探索
+              {t.overview.exploreExisting}
             </button>
           </div>
           </div>
-          <KnowledgeGraphIllustration />
+          <KnowledgeGraphIllustration t={t} />
         </div>
       </div>
     </div>
   );
 }
 
-function OverviewStatusCard({
-  accent,
-  badge,
-  description,
-  icon,
-  themeMode,
-  title,
-  value,
-}: {
-  accent: "emerald" | "blue" | "cyan";
-  badge: string;
-  description: string;
-  icon: "projects" | "theme" | "storage";
-  themeMode?: ThemeMode;
-  title: string;
-  value: string;
-}) {
-  const styles = {
-    emerald: {
-      border: "border-emerald-500/20",
-      icon: "bg-emerald-500/10 text-emerald-500",
-      badge: "bg-emerald-500/10 text-emerald-500",
-    },
-    blue: {
-      border: "border-blue-500/20",
-      icon: "bg-blue-500/10 text-blue-500",
-      badge: "bg-blue-500/10 text-blue-500",
-    },
-    cyan: {
-      border: "border-cyan-500/20",
-      icon: "bg-cyan-500/10 text-cyan-500",
-      badge: "bg-cyan-500/10 text-cyan-500",
-    },
-  }[accent];
-
-  return (
-    <div className={`flex min-h-52 flex-col rounded-2xl border bg-surface/80 p-5 shadow-lg shadow-black/[0.03] backdrop-blur-sm ${styles.border}`}>
-      <div className="flex items-center gap-4">
-        <span className={`grid h-14 w-14 shrink-0 place-items-center rounded-xl ${styles.icon}`}>
-          <OverviewCardIcon type={icon} themeMode={themeMode} />
-        </span>
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-text-muted">{title}</p>
-          <p className="mt-1 font-heading text-xl font-semibold leading-snug text-text-primary">{value}</p>
-        </div>
-      </div>
-      <p className="mt-5 min-h-12 text-sm leading-6 text-text-secondary">{description}</p>
-      <div className="mt-auto pt-4">
-        <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold ${styles.badge}`}>
-          {icon === "projects" && projectStatusIcon(badge)}
-          {icon === "theme" && <ThemeIcon mode={badge.toLowerCase() as ThemeMode} />}
-          {icon === "storage" && <ShieldIcon />}
-          {badge}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function OverviewCardIcon({ type, themeMode }: { type: "projects" | "theme" | "storage"; themeMode?: ThemeMode }) {
-  if (type === "projects") {
-    return (
-      <svg aria-hidden="true" className="h-7 w-7" fill="none" viewBox="0 0 24 24">
-        <ellipse cx="12" cy="5" rx="6.5" ry="2.5" stroke="currentColor" strokeWidth="1.8" />
-        <path d="M5.5 5v5c0 1.38 2.91 2.5 6.5 2.5s6.5-1.12 6.5-2.5V5M5.5 10v5c0 1.38 2.91 2.5 6.5 2.5s6.5-1.12 6.5-2.5v-5M5.5 15v4c0 1.38 2.91 2.5 6.5 2.5s6.5-1.12 6.5-2.5v-4" stroke="currentColor" strokeWidth="1.8" />
-      </svg>
-    );
-  }
-
-  if (type === "theme") {
-    return <span className="[&>svg]:h-7 [&>svg]:w-7"><ThemeIcon mode={themeMode ?? "system"} /></span>;
-  }
-
-  return (
-    <svg aria-hidden="true" className="h-7 w-7" fill="none" viewBox="0 0 24 24">
-      <rect x="3" y="4" width="18" height="13" rx="2" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M8 21h8M12 17v4" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
-    </svg>
-  );
-}
-
-function projectStatusIcon(status: string) {
-  return status === "Ready" ? (
-    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
-      <path d="m5 12 4 4L19 6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" />
-    </svg>
-  ) : (
-    <span aria-hidden="true" className="h-2 w-2 rounded-full bg-current opacity-70" />
-  );
-}
-
-function ShieldIcon() {
-  return (
-    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
-      <path d="M12 3 5.5 5.5v5.2c0 4.1 2.7 7.9 6.5 9.3 3.8-1.4 6.5-5.2 6.5-9.3V5.5L12 3Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.8" />
-      <path d="m9 11.5 2 2 4-4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
-    </svg>
-  );
-}
-
-function KnowledgeGraphIllustration() {
+function KnowledgeGraphIllustration({ t }: { t: WorkbenchCopy }) {
   return (
     <div className="relative hidden xl:block" aria-hidden="true">
       <div className="absolute inset-[12%] rounded-full bg-accent/10 blur-3xl" />
@@ -867,7 +747,7 @@ function KnowledgeGraphIllustration() {
           <circle cx="78" cy="112" r="5" fill="var(--color-accent)" opacity="0.7" />
           <path d="M42 140h75M42 156h108M42 172h54M58 188h80M58 204h62M42 220h98M58 236h48" stroke="currentColor" strokeLinecap="round" strokeOpacity="0.28" strokeWidth="5" />
           <path d="M42 140h34M58 188h28M42 220h42" stroke="var(--color-accent)" strokeLinecap="round" strokeOpacity="0.75" strokeWidth="5" />
-          <text x="103" y="298" fill="currentColor" fontFamily="var(--font-sans)" fontSize="14" fontWeight="600" textAnchor="middle">代码仓库</text>
+          <text x="103" y="298" fill="currentColor" fontFamily="var(--font-sans)" fontSize="14" fontWeight="600" textAnchor="middle">{t.overview.illustrationRepository}</text>
         </g>
 
         <g stroke="var(--color-border-medium)" strokeWidth="2">
@@ -886,33 +766,23 @@ function KnowledgeGraphIllustration() {
         </g>
         <circle cx="300" cy="226" r="34" fill="url(#overview-accent)" stroke="var(--color-accent-bright)" strokeWidth="2" />
         <text x="300" y="234" fill="var(--color-root)" fontFamily="var(--font-mono)" fontSize="22" fontWeight="700" textAnchor="middle">&lt;/&gt;</text>
-        <text x="300" y="355" fill="currentColor" fontFamily="var(--font-sans)" fontSize="14" fontWeight="600" textAnchor="middle">知识图谱</text>
+        <text x="300" y="355" fill="currentColor" fontFamily="var(--font-sans)" fontSize="14" fontWeight="600" textAnchor="middle">{t.overview.illustrationGraph}</text>
 
-        {[
-          { y: 54, color: "#6fcf97", title: "模块", subtitle: "Module" },
-          { y: 132, color: "#62a8ea", title: "类 / 接口", subtitle: "Class / Interface" },
-          { y: 210, color: "#9b8be8", title: "函数 / 方法", subtitle: "Function / Method" },
-          { y: 288, color: "#e8b65c", title: "依赖关系", subtitle: "Dependency" },
-          { y: 366, color: "#62bdac", title: "关键概念", subtitle: "Concept" },
-        ].map((item) => (
+        {t.overview.illustrationItems.map((item, index) => (
           <g key={item.title} filter="url(#overview-shadow)">
-            <rect x="404" y={item.y} width="158" height="58" rx="12" fill="url(#overview-card)" stroke={item.color} strokeOpacity="0.65" />
-            <circle cx="426" cy={item.y + 29} r="9" fill={item.color} fillOpacity="0.22" stroke={item.color} />
-            <text x="445" y={item.y + 25} fill="currentColor" fontFamily="var(--font-sans)" fontSize="13" fontWeight="600">{item.title}</text>
-            <text x="445" y={item.y + 42} fill="currentColor" fillOpacity="0.55" fontFamily="var(--font-mono)" fontSize="9">{item.subtitle}</text>
+            <rect x="404" y={54 + index * 78} width="158" height="58" rx="12" fill="url(#overview-card)" stroke={["#6fcf97", "#62a8ea", "#9b8be8", "#e8b65c", "#62bdac"][index]} strokeOpacity="0.65" />
+            <circle cx="426" cy={83 + index * 78} r="9" fill={["#6fcf97", "#62a8ea", "#9b8be8", "#e8b65c", "#62bdac"][index]} fillOpacity="0.22" stroke={["#6fcf97", "#62a8ea", "#9b8be8", "#e8b65c", "#62bdac"][index]} />
+            <text x="445" y={79 + index * 78} fill="currentColor" fontFamily="var(--font-sans)" fontSize="13" fontWeight="600">{item.title}</text>
+            <text x="445" y={96 + index * 78} fill="currentColor" fillOpacity="0.55" fontFamily="var(--font-mono)" fontSize="9">{item.subtitle}</text>
           </g>
         ))}
 
         <path d="M300 370v36M300 406H138v28M300 406h162v28M300 406v28" stroke="var(--color-border-medium)" strokeDasharray="5 6" strokeWidth="2" />
-        {[
-          { x: 70, label: "智能问答" },
-          { x: 231, label: "洞察分析" },
-          { x: 392, label: "团队协作" },
-        ].map((item) => (
-          <g key={item.label}>
-            <rect x={item.x} y="434" width="138" height="48" rx="12" fill="url(#overview-card)" stroke="var(--color-border-subtle)" />
-            <circle cx={item.x + 24} cy="458" r="9" fill="var(--color-accent)" fillOpacity="0.18" stroke="var(--color-accent)" />
-            <text x={item.x + 43} y="463" fill="currentColor" fontFamily="var(--font-sans)" fontSize="13" fontWeight="600">{item.label}</text>
+        {t.overview.illustrationOutcomes.map((label, index) => (
+          <g key={label}>
+            <rect x={70 + index * 161} y="434" width="138" height="48" rx="12" fill="url(#overview-card)" stroke="var(--color-border-subtle)" />
+            <circle cx={94 + index * 161} cy="458" r="9" fill="var(--color-accent)" fillOpacity="0.18" stroke="var(--color-accent)" />
+            <text x={113 + index * 161} y="463" fill="currentColor" fontFamily="var(--font-sans)" fontSize="13" fontWeight="600">{label}</text>
           </g>
         ))}
       </svg>
@@ -926,6 +796,7 @@ function CreateProjectPanel(props: {
   documentFiles: FileList | null;
   documentName: string;
   githubUrl: string;
+  t: WorkbenchCopy;
   onCreateDocument: (event: FormEvent) => void;
   onCreateGithub: (event: FormEvent) => void;
   onDocumentFilesChange: (files: FileList | null) => void;
@@ -937,8 +808,8 @@ function CreateProjectPanel(props: {
     <div className="flex min-h-[calc(100vh-3rem)] items-center justify-center">
       <div className="w-full max-w-xl rounded-lg border border-border-subtle bg-surface p-5 shadow-2xl shadow-black/20">
         <div className="mb-5">
-          <p className="font-mono text-xs uppercase tracking-[0.18em] text-accent">New project</p>
-          <h2 className="mt-2 font-heading text-3xl text-text-primary">Choose a source</h2>
+          <p className="font-mono text-xs uppercase tracking-[0.18em] text-accent">{props.t.create.newProject}</p>
+          <h2 className="mt-2 font-heading text-3xl text-text-primary">{props.t.create.chooseSource}</h2>
         </div>
         <div className="mb-5 grid grid-cols-2 rounded-md bg-elevated p-1">
           <button
@@ -946,21 +817,21 @@ function CreateProjectPanel(props: {
             onClick={() => props.onTabChange("github_repo")}
             className={`rounded px-3 py-2 text-sm font-semibold ${props.activeTab === "github_repo" ? "bg-accent/20 text-accent" : "text-text-muted"}`}
           >
-            GitHub
+            {props.t.create.github}
           </button>
           <button
             type="button"
             onClick={() => props.onTabChange("document_kb")}
             className={`rounded px-3 py-2 text-sm font-semibold ${props.activeTab === "document_kb" ? "bg-accent/20 text-accent" : "text-text-muted"}`}
           >
-            Documents
+            {props.t.create.documents}
           </button>
         </div>
 
         {props.activeTab === "github_repo" ? (
           <form className="space-y-4" onSubmit={props.onCreateGithub}>
             <label className="block text-sm font-semibold text-text-secondary">
-              Public GitHub repository
+              {props.t.create.publicGithubRepository}
               <input
                 value={props.githubUrl}
                 onChange={(event) => props.onGithubUrlChange(event.target.value)}
@@ -973,13 +844,13 @@ function CreateProjectPanel(props: {
               disabled={props.busy !== null || props.githubUrl.trim() === ""}
               className="w-full rounded-md bg-accent px-4 py-2.5 text-sm font-bold text-black transition hover:bg-accent-bright disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {props.busy === "github" ? "Cloning..." : "Create Repository Project"}
+              {props.busy === "github" ? props.t.create.cloning : props.t.create.createRepositoryProject}
             </button>
           </form>
         ) : (
           <form className="space-y-4" onSubmit={props.onCreateDocument}>
             <label className="block text-sm font-semibold text-text-secondary">
-              Project name
+              {props.t.create.projectName}
               <input
                 value={props.documentName}
                 onChange={(event) => props.onDocumentNameChange(event.target.value)}
@@ -987,7 +858,7 @@ function CreateProjectPanel(props: {
               />
             </label>
             <label className="block text-sm font-semibold text-text-secondary">
-              Documents
+              {props.t.create.documents}
               <input
                 key={props.documentFiles ? Array.from(props.documentFiles).map((file) => file.name).join("|") : "empty"}
                 type="file"
@@ -1002,7 +873,7 @@ function CreateProjectPanel(props: {
               disabled={props.busy !== null}
               className="w-full rounded-md bg-accent px-4 py-2.5 text-sm font-bold text-black transition hover:bg-accent-bright disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {props.busy === "documents" ? "Importing..." : "Create Document Project"}
+              {props.busy === "documents" ? props.t.create.importing : props.t.create.createDocumentProject}
             </button>
           </form>
         )}
@@ -1017,6 +888,7 @@ function ProjectDetailPanel({
   globalJobs,
   busy,
   busyAction,
+  t,
   onQueue,
   onDeleteProject,
   onDeleteJob,
@@ -1027,22 +899,23 @@ function ProjectDetailPanel({
   globalJobs: GlobalAnalysisJob[];
   busy: boolean;
   busyAction: string | null;
+  t: WorkbenchCopy;
   onQueue: () => void;
   onDeleteProject: () => void;
   onDeleteJob: (jobId: string) => void;
   onReorderJobs: (activeJobId: string, targetJobId: string) => void;
 }) {
   const latestJob = jobs[0];
-  const status = analysisStatus(latestJob);
+  const status = analysisStatus(latestJob, t);
   const [draggedJobId, setDraggedJobId] = useState<string | null>(null);
   const [dragOverJobId, setDragOverJobId] = useState<string | null>(null);
   return (
     <div className="py-4">
       <div className="mb-5 flex flex-col gap-4 border-b border-border-subtle pb-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="font-mono text-xs uppercase tracking-[0.18em] text-accent">{project.type === "github_repo" ? "Repository" : "Documents"}</p>
+          <p className="font-mono text-xs uppercase tracking-[0.18em] text-accent">{project.type === "github_repo" ? t.project.repository : t.project.documents}</p>
           <h1 className="mt-2 font-heading text-4xl text-text-primary">{project.name}</h1>
-          <p className="mt-2 font-mono text-xs text-text-muted">{sourceLabel(project)}</p>
+          <p className="mt-2 font-mono text-xs text-text-muted">{sourceLabel(project, t)}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -1051,7 +924,7 @@ function ProjectDetailPanel({
             disabled={busyAction === `delete-project:${project.id}`}
             className="rounded-md border border-red-500/30 bg-red-500/5 px-4 py-2.5 text-sm font-semibold text-red-400 transition hover:border-red-500/60 hover:bg-red-500/10 disabled:cursor-wait disabled:opacity-50"
           >
-            {busyAction === `delete-project:${project.id}` ? "Deleting..." : "Delete Project"}
+            {busyAction === `delete-project:${project.id}` ? t.project.deleting : t.project.deleteProject}
           </button>
           <button
             type="button"
@@ -1059,39 +932,39 @@ function ProjectDetailPanel({
             disabled={busy}
             className="rounded-md border border-border-medium bg-elevated px-4 py-2.5 text-sm font-semibold text-text-secondary transition hover:text-text-primary disabled:opacity-50"
           >
-            {busy ? "Starting..." : "Begin Analysis"}
+            {busy ? t.project.starting : t.project.beginAnalysis}
           </button>
           {latestJob?.status === "completed" ? (
             <a
               href={`/?project=${encodeURIComponent(project.id)}`}
               className="rounded-md bg-accent px-4 py-2.5 text-sm font-bold text-black transition hover:bg-accent-bright"
             >
-              Open Graph
+              {t.project.openGraph}
             </a>
           ) : (
             <button
               type="button"
               disabled
               className="cursor-not-allowed rounded-md bg-accent/30 px-4 py-2.5 text-sm font-bold text-text-muted"
-              title="Complete an analysis before opening the knowledge graph."
+              title={t.project.graphNotReadyTitle}
             >
-              Graph Not Ready
+              {t.project.graphNotReady}
             </button>
           )}
         </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
-        <Metric label="Latest job" value={latestJob ? latestJob.status.replace("_", " ") : "none"} />
-        <Metric label="Worker phase" value={latestJob?.phase ?? "idle"} />
-        <Metric label="Source path" value={project.sourcePath} wide />
-        <Metric label="Graph path" value={project.graphPath} wide />
+        <Metric label={t.project.latestJob} value={latestJob ? statusLabel(latestJob.status, t) : t.project.none} />
+        <Metric label={t.project.workerPhase} value={latestJob?.phase ?? t.project.idle} />
+        <Metric label={t.project.sourcePath} value={project.sourcePath} wide />
+        <Metric label={t.project.graphPath} value={project.graphPath} wide />
       </div>
 
       <section className="mt-5 rounded-lg border border-border-subtle bg-surface">
         <div className="flex flex-col gap-3 border-b border-border-subtle px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted">Analysis Status</p>
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-text-muted">{t.project.analysisStatus}</p>
             <h2 className="mt-1 font-heading text-xl text-text-primary">{status.title}</h2>
           </div>
           <span className={`w-fit rounded px-2 py-1 font-mono text-[10px] uppercase tracking-wider ${status.badgeClass}`}>
@@ -1107,25 +980,25 @@ function ProjectDetailPanel({
           </div>
           <div className="mt-3 grid gap-3 text-xs text-text-secondary sm:grid-cols-3">
             <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">Progress</p>
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">{t.project.progress}</p>
               <p className="mt-1 font-semibold text-text-primary">{status.progress}%</p>
             </div>
             <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">Last update</p>
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">{t.project.lastUpdate}</p>
               <p className="mt-1 font-semibold text-text-primary">
-                {latestJob ? new Date(latestJob.updatedAt).toLocaleString() : "Not started"}
+                {latestJob ? new Date(latestJob.updatedAt).toLocaleString() : t.project.notStarted}
               </p>
             </div>
             <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">Current job</p>
-              <p className="mt-1 truncate font-mono text-text-primary" title={latestJob?.id ?? "none"}>
-                {latestJob?.id ?? "none"}
+              <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-muted">{t.project.currentJob}</p>
+              <p className="mt-1 truncate font-mono text-text-primary" title={latestJob?.id ?? t.project.none}>
+                {latestJob?.id ?? t.project.none}
               </p>
             </div>
           </div>
           {latestJob?.logPath && (
             <div className="mt-3 rounded-md border border-border-subtle bg-root px-3 py-2 font-mono text-xs text-text-muted">
-              Log: {latestJob.logPath}
+              {t.project.log}: {latestJob.logPath}
             </div>
           )}
           {latestJob?.error && <p className="mt-3 text-xs text-red-300">{latestJob.error}</p>}
@@ -1134,12 +1007,12 @@ function ProjectDetailPanel({
 
       <div className="mt-5 rounded-lg border border-border-subtle bg-surface">
         <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
-          <h2 className="font-heading text-xl">Global Analysis Queue</h2>
-          <span className="font-mono text-xs text-text-muted">{globalJobs.length} total</span>
+          <h2 className="font-heading text-xl">{t.project.globalQueue}</h2>
+          <span className="font-mono text-xs text-text-muted">{t.project.total(globalJobs.length)}</span>
         </div>
         <div className="divide-y divide-border-subtle">
           {globalJobs.length === 0 ? (
-            <div className="px-4 py-12 text-center text-sm text-text-muted">No analysis jobs queued yet.</div>
+            <div className="px-4 py-12 text-center text-sm text-text-muted">{t.project.noJobs}</div>
           ) : (
             globalJobs.map((job) => (
               <div
@@ -1175,7 +1048,7 @@ function ProjectDetailPanel({
                   <div className="flex flex-wrap items-center gap-2">
                     <span
                       className="grid h-7 w-7 cursor-grab place-items-center rounded border border-border-subtle bg-root font-mono text-xs text-text-muted active:cursor-grabbing"
-                      title="Drag to reorder"
+                      title={t.project.dragToReorder}
                     >
                       ::
                     </span>
@@ -1186,7 +1059,7 @@ function ProjectDetailPanel({
                       {job.projectName}
                     </span>
                     <span className={`rounded px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider ${statusClass(job.status)}`}>
-                      {job.status.replace("_", " ")}
+                      {statusLabel(job.status, t)}
                     </span>
                     <span className="font-mono text-xs text-text-muted">{new Date(job.createdAt).toLocaleString()}</span>
                   </div>
@@ -1200,8 +1073,8 @@ function ProjectDetailPanel({
                   onClick={() => onDeleteJob(job.id)}
                   disabled={busyAction === `delete:${job.id}`}
                   className="h-9 w-9 rounded-md border border-border-subtle bg-root font-mono text-sm text-text-muted transition hover:border-red-500/50 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
-                  title="Delete analysis job"
-                  aria-label={`Delete analysis job ${job.id}`}
+                  title={t.project.deleteAnalysisJob}
+                  aria-label={t.project.deleteAnalysisJobAria(job.id)}
                 >
                   x
                 </button>
@@ -1223,7 +1096,7 @@ function compareGlobalJobs(a: GlobalAnalysisJob, b: GlobalAnalysisJob): number {
   return a.createdAt.localeCompare(b.createdAt);
 }
 
-function analysisStatus(job: OpenRepoJob | undefined): {
+function analysisStatus(job: OpenRepoJob | undefined, t: WorkbenchCopy): {
   title: string;
   badge: string;
   progress: number;
@@ -1232,8 +1105,8 @@ function analysisStatus(job: OpenRepoJob | undefined): {
 } {
   if (!job) {
     return {
-      title: "Ready to begin",
-      badge: "idle",
+      title: t.status.readyToBegin,
+      badge: t.status.idle,
       progress: 0,
       badgeClass: "bg-elevated text-text-muted",
       barClass: "bg-border-medium",
@@ -1241,8 +1114,8 @@ function analysisStatus(job: OpenRepoJob | undefined): {
   }
   if (job.status === "queued") {
     return {
-      title: job.phase ? `Waiting: ${job.phase}` : "Waiting in the global queue",
-      badge: "queued",
+      title: t.status.waiting(job.phase),
+      badge: t.status.labels.queued,
       progress: job.progress ?? 15,
       badgeClass: statusClass(job.status),
       barClass: "bg-amber-400",
@@ -1250,8 +1123,8 @@ function analysisStatus(job: OpenRepoJob | undefined): {
   }
   if (job.status === "in_progress") {
     return {
-      title: job.phase ? `Running: ${job.phase}` : "Analysis is running",
-      badge: "in progress",
+      title: t.status.running(job.phase),
+      badge: t.status.inProgress,
       progress: job.progress ?? 55,
       badgeClass: statusClass(job.status),
       barClass: "bg-sky-400",
@@ -1259,16 +1132,16 @@ function analysisStatus(job: OpenRepoJob | undefined): {
   }
   if (job.status === "completed") {
     return {
-      title: "Analysis completed",
-      badge: "completed",
+      title: t.status.completed,
+      badge: t.status.labels.completed,
       progress: 100,
       badgeClass: statusClass(job.status),
       barClass: "bg-emerald-400",
     };
   }
   return {
-    title: "Analysis failed",
-    badge: "failed",
+    title: t.status.failed,
+    badge: t.status.labels.failed,
     progress: 100,
     badgeClass: statusClass(job.status),
     barClass: "bg-red-400",
@@ -1281,6 +1154,7 @@ function SettingsPanel({
   busy,
   providerPresets,
   testing,
+  t,
   onBack,
   onChange,
   onTestAgent,
@@ -1291,6 +1165,7 @@ function SettingsPanel({
   busy: boolean;
   providerPresets: AgentProviderPreset[];
   testing: boolean;
+  t: WorkbenchCopy;
   onBack: () => void;
   onChange: (settings: OpenRepoSettings) => void;
   onTestAgent: () => void;
@@ -1331,8 +1206,8 @@ function SettingsPanel({
       <form onSubmit={onSubmit} className="w-full rounded-lg border border-border-subtle bg-surface p-5 shadow-2xl shadow-black/20">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="font-mono text-xs uppercase tracking-[0.18em] text-accent">Global settings</p>
-            <h2 className="mt-2 font-heading text-3xl text-text-primary">Runtime configuration</h2>
+            <p className="font-mono text-xs uppercase tracking-[0.18em] text-accent">{t.settings.globalSettings}</p>
+            <h2 className="mt-2 font-heading text-3xl text-text-primary">{t.settings.runtimeConfiguration}</h2>
           </div>
           <button
             type="button"
@@ -1340,38 +1215,52 @@ function SettingsPanel({
             className="flex items-center justify-center gap-2 rounded-md border border-border-medium bg-elevated px-4 py-2 text-sm font-semibold text-text-secondary transition hover:border-accent/40 hover:text-text-primary"
           >
             <ChevronIcon direction="left" />
-            返回工作台
+            {t.common.backToWorkbench}
           </button>
         </div>
 
         <div className="mt-6 grid gap-4">
           <section className="rounded-md border border-border-subtle bg-root/45 p-4">
-            <h3 className="font-heading text-xl text-text-primary">Appearance</h3>
-            <label className="mt-4 block text-sm font-semibold text-text-secondary">
-              Theme mode
-              <select
-                value={draft.appearance.themeMode}
-                onChange={(event) => onChange({ ...draft, appearance: { ...draft.appearance, themeMode: event.target.value as ThemeMode } })}
-                className="mt-2 w-full rounded-md border border-border-medium bg-root px-3 py-2 text-sm text-text-primary outline-none transition focus:border-accent"
-              >
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-                <option value="system">System</option>
-              </select>
-            </label>
+            <h3 className="font-heading text-xl text-text-primary">{t.settings.appearance}</h3>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <label className="block text-sm font-semibold text-text-secondary">
+                {t.settings.themeMode}
+                <select
+                  value={draft.appearance.themeMode}
+                  onChange={(event) => onChange({ ...draft, appearance: { ...draft.appearance, themeMode: event.target.value as ThemeMode } })}
+                  className="mt-2 w-full rounded-md border border-border-medium bg-root px-3 py-2 text-sm text-text-primary outline-none transition focus:border-accent"
+                >
+                  <option value="light">{t.theme.labels.light}</option>
+                  <option value="dark">{t.theme.labels.dark}</option>
+                  <option value="system">{t.theme.labels.system}</option>
+                </select>
+              </label>
+              <label className="block text-sm font-semibold text-text-secondary">
+                {t.settings.language}
+                <select
+                  value={draft.appearance.language}
+                  onChange={(event) => onChange({ ...draft, appearance: { ...draft.appearance, language: event.target.value as WorkbenchLanguage } })}
+                  className="mt-2 w-full rounded-md border border-border-medium bg-root px-3 py-2 text-sm text-text-primary outline-none transition focus:border-accent"
+                >
+                  {workbenchLanguageOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
           </section>
 
           <section className="rounded-md border border-border-subtle bg-root/45 p-4">
-            <h3 className="font-heading text-xl text-text-primary">Project storage</h3>
+            <h3 className="font-heading text-xl text-text-primary">{t.settings.projectStorage}</h3>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <SettingsInput
-                label="Project clone root path"
+                label={t.settings.cloneRootPath}
                 value={draft.storage.cloneRootPath}
                 onChange={(value) => onChange({ ...draft, storage: { ...draft.storage, cloneRootPath: value } })}
                 placeholder="D:\\OpenRepoCopilot\\clones"
               />
               <SettingsInput
-                label="Knowledge graph export path"
+                label={t.settings.graphExportPath}
                 value={draft.storage.graphExportPath}
                 onChange={(value) => onChange({ ...draft, storage: { ...draft.storage, graphExportPath: value } })}
                 placeholder="D:\\OpenRepoCopilot\\exports"
@@ -1382,19 +1271,19 @@ function SettingsPanel({
           <section className="rounded-md border border-border-subtle bg-root/45 p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h3 className="font-heading text-xl text-text-primary">Agent / model provider</h3>
+                <h3 className="font-heading text-xl text-text-primary">{t.settings.agentProvider}</h3>
                 <p className="mt-1 text-xs text-text-muted">
-                  API keys are read from environment variables or the local agent.env file only.
+                  {t.settings.apiKeyNote}
                 </p>
               </div>
               <span className={`w-fit rounded px-2 py-1 font-mono text-[10px] uppercase ${agentStatus.apiKeyConfigured ? "bg-emerald-500/15 text-emerald-300" : "bg-amber-500/15 text-amber-300"}`}>
-                {agentStatus.apiKeyConfigured ? "key configured" : "key missing"}
+                {agentStatus.apiKeyConfigured ? t.settings.keyConfigured : t.settings.keyMissing}
               </span>
             </div>
 
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <label className="block text-sm font-semibold text-text-secondary">
-                API provider
+                {t.settings.apiProvider}
                 <select
                   value={draft.agent.provider}
                   onChange={(event) => applyProviderPreset(event.target.value as AgentProvider)}
@@ -1406,19 +1295,19 @@ function SettingsPanel({
                 </select>
               </label>
               <SettingsInput
-                label="Model"
+                label={t.settings.model}
                 value={draft.agent.model}
                 onChange={(value) => onChange({ ...draft, agent: { ...draft.agent, model: value } })}
                 placeholder="glm-5.1"
               />
               <SettingsInput
-                label="Base URL"
+                label={t.settings.baseUrl}
                 value={draft.agent.baseUrl}
                 onChange={(value) => onChange({ ...draft, agent: { ...draft.agent, baseUrl: value } })}
                 placeholder="https://dashscope.aliyuncs.com/compatible-mode/v1"
               />
               <SettingsInput
-                label="API key environment variable"
+                label={t.settings.apiKeyEnv}
                 value={draft.agent.apiKeyEnv}
                 onChange={(value) => onChange({ ...draft, agent: { ...draft.agent, apiKeyEnv: value } })}
                 placeholder="DASHSCOPE_API_KEY"
@@ -1426,7 +1315,7 @@ function SettingsPanel({
             </div>
 
             <div className="mt-4 rounded-md border border-border-subtle bg-surface px-3 py-2 font-mono text-xs text-text-muted">
-              Key file: {agentStatus.apiKeyFilePath || "<OPENREPO_HOME>\\agent.env"}
+              {t.settings.keyFile}: {agentStatus.apiKeyFilePath || "<OPENREPO_HOME>\\agent.env"}
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
@@ -1435,7 +1324,7 @@ function SettingsPanel({
                 onClick={restoreActivePreset}
                 className="rounded-md border border-border-medium bg-elevated px-4 py-2 text-sm font-semibold text-text-secondary transition hover:text-text-primary"
               >
-                Restore provider preset
+                {t.settings.restoreProviderPreset}
               </button>
               <button
                 type="button"
@@ -1443,13 +1332,13 @@ function SettingsPanel({
                 disabled={testing}
                 className="rounded-md border border-border-medium bg-elevated px-4 py-2 text-sm font-semibold text-text-secondary transition hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {testing ? "Testing..." : "Test connection"}
+                {testing ? t.settings.testing : t.settings.testConnection}
               </button>
             </div>
           </section>
 
           <section className="rounded-md border border-border-subtle bg-root/45 p-4">
-            <h3 className="font-heading text-xl text-text-primary">Analysis runtime</h3>
+            <h3 className="font-heading text-xl text-text-primary">{t.settings.analysisRuntime}</h3>
             <div className="mt-4 grid gap-4 md:grid-cols-3">
               <label className="flex items-center gap-3 rounded-md border border-border-subtle bg-surface px-3 py-2 text-sm font-semibold text-text-secondary">
                 <input
@@ -1458,17 +1347,17 @@ function SettingsPanel({
                   onChange={(event) => onChange({ ...draft, agent: { ...draft.agent, autoRunJobs: event.target.checked } })}
                   className="h-4 w-4 accent-[var(--color-accent)]"
                 />
-                Auto-run queued jobs
+                {t.settings.autoRunQueuedJobs}
               </label>
               <SettingsInput
-                label="Request timeout (ms)"
+                label={t.settings.requestTimeout}
                 type="number"
                 value={String(draft.agent.requestTimeout)}
                 onChange={(value) => onChange({ ...draft, agent: { ...draft.agent, requestTimeout: Number(value) } })}
                 placeholder="120000"
               />
               <SettingsInput
-                label="Max concurrency"
+                label={t.settings.maxConcurrency}
                 type="number"
                 value={String(draft.agent.maxConcurrency)}
                 onChange={(value) => onChange({ ...draft, agent: { ...draft.agent, maxConcurrency: Number(value) } })}
@@ -1483,7 +1372,7 @@ function SettingsPanel({
             disabled={busy}
             className="rounded-md bg-accent px-5 py-2.5 text-sm font-bold text-black transition hover:bg-accent-bright disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {busy ? "Saving..." : "Save settings"}
+            {busy ? t.settings.saving : t.settings.saveSettings}
           </button>
         </div>
       </form>
@@ -1527,10 +1416,10 @@ function Metric({ label, value, wide = false }: { label: string; value: string; 
   );
 }
 
-function sourceLabel(project: OpenRepoProject): string {
+function sourceLabel(project: OpenRepoProject, t: WorkbenchCopy): string {
   return project.source.type === "github_repo"
     ? project.source.url
-    : `${project.source.documentNames.length} document${project.source.documentNames.length === 1 ? "" : "s"}`;
+    : t.project.sourceDocuments(project.source.documentNames.length);
 }
 
 function nextThemeMode(mode: ThemeMode): ThemeMode {
@@ -1539,24 +1428,8 @@ function nextThemeMode(mode: ThemeMode): ThemeMode {
   return "light";
 }
 
-function themeModeLabel(mode: ThemeMode): string {
-  return mode.charAt(0).toUpperCase() + mode.slice(1);
-}
-
-function themeModeChineseLabel(mode: ThemeMode): string {
-  if (mode === "light") return "亮色";
-  if (mode === "dark") return "暗色";
-  return "跟随系统";
-}
-
-function themeModeDisplayValue(mode: ThemeMode): string {
-  return mode === "system" ? "跟随系统" : `${themeModeChineseLabel(mode)}模式`;
-}
-
-function themeModeDescription(mode: ThemeMode): string {
-  if (mode === "light") return "清爽明亮，适合展示与阅读代码关系";
-  if (mode === "dark") return "降低高亮对比，适合低光环境持续阅读";
-  return "自动匹配系统外观，在亮色与暗色间切换";
+function statusLabel(status: JobStatus, t: WorkbenchCopy): string {
+  return t.status.labels[status];
 }
 
 function ChevronIcon({ direction }: { direction: "left" | "right" }) {

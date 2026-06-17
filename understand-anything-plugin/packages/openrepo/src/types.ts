@@ -52,6 +52,7 @@ export interface UploadedDocument {
 }
 
 export type OpenRepoThemeMode = "light" | "dark" | "system";
+export type OpenRepoLanguage = "zh" | "en" | "ja";
 
 export type OpenRepoAgentProvider =
   | "dashscope"
@@ -63,6 +64,7 @@ export type OpenRepoAgentProvider =
 
 export interface OpenRepoAppearanceSettings {
   themeMode: OpenRepoThemeMode;
+  language: OpenRepoLanguage;
 }
 
 export interface OpenRepoStorageSettings {
