@@ -20,7 +20,7 @@ const PathFinderModal = lazy(() => import("./PathFinderModal"));
 const KeyboardShortcutsHelp = lazy(() => import("./KeyboardShortcutsHelp"));
 
 interface Props {
-  accessToken: string;
+  isDemo: boolean;
   showKeyboardHelp: boolean;
   setShowKeyboardHelp: (value: boolean) => void;
   loadError: string | null;
@@ -29,7 +29,7 @@ interface Props {
 }
 
 export default function MobileLayout({
-  accessToken,
+  isDemo,
   showKeyboardHelp,
   setShowKeyboardHelp,
   loadError,
@@ -203,7 +203,7 @@ export default function MobileLayout({
           >
             <Suspense fallback={null}>
               <CodeViewer
-                accessToken={accessToken}
+                isDemo={isDemo}
                 presentation="modal"
                 onClose={closeCodeViewer}
               />

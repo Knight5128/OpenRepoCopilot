@@ -122,10 +122,6 @@ export const en = {
     domain: "Domain",
     knowledge: "Knowledge",
   },
-  tokenGate: {
-    validating: "Validating...",
-    continue: "Continue",
-  },
   diffToggle: {
     hideOverlay: "Hide diff overlay",
     showOverlay: "Show diff overlay",

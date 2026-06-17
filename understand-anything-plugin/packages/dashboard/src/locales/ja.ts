@@ -122,10 +122,6 @@ export const ja = {
     domain: "ドメイン",
     knowledge: "ナレッジ",
   },
-  tokenGate: {
-    validating: "検証中...",
-    continue: "続行",
-  },
   diffToggle: {
     hideOverlay: "差分オーバーレイを非表示",
     showOverlay: "差分オーバーレイを表示",

@@ -15,7 +15,6 @@ import PersonaSelector from "./components/PersonaSelector";
 import ProjectOverview from "./components/ProjectOverview";
 import FileExplorer from "./components/FileExplorer";
 import WarningBanner from "./components/WarningBanner";
-import TokenGate from "./components/TokenGate";
 import MobileLayout from "./components/MobileLayout";
 import { useIsMobile } from "./hooks/useIsMobile";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
@@ -38,7 +37,6 @@ const OnboardingOverlay = lazy(() => import("./components/OnboardingOverlay"));
 
 const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === "true";
 const OPENREPO_MODE = import.meta.env.VITE_OPENREPO_MODE === "true";
-const SESSION_TOKEN_KEY = "understand-anything-token";
 const ONBOARDING_DISMISSED_KEY = "ua-onboarding-dismissed-v1";
 type SidebarTab = "info" | "files";
 
@@ -49,8 +47,8 @@ function shouldShowOnboarding(): boolean {
   return window.localStorage.getItem(ONBOARDING_DISMISSED_KEY) !== "1";
 }
 
-/** Resolve data file URL — in demo mode, use env var URLs; otherwise use local paths with token. */
-function dataUrl(fileName: string, token: string | null, projectId?: string): string {
+/** Resolve data file URL - in demo mode, use env var URLs; otherwise use local paths. */
+function dataUrl(fileName: string, projectId?: string): string {
   if (OPENREPO_MODE && projectId) {
     const endpointMap: Record<string, string> = {
       "knowledge-graph.json": "graph",
@@ -74,58 +72,20 @@ function dataUrl(fileName: string, token: string | null, projectId?: string): st
     if (url) return url;
   }
   const path = `/${fileName}`;
-  return token ? `${path}?token=${encodeURIComponent(token)}` : path;
-}
-
-/**
- * Resolve the access token from the URL query string or sessionStorage.
- * If found in the URL, persist to sessionStorage and strip the param from the address bar.
- */
-function resolveInitialToken(): string | null {
-  if (DEMO_MODE) return "__demo__";
-  const params = new URLSearchParams(window.location.search);
-  const urlToken = params.get("token");
-  if (urlToken) {
-    sessionStorage.setItem(SESSION_TOKEN_KEY, urlToken);
-    // Clean the URL
-    params.delete("token");
-    const cleanSearch = params.toString();
-    const newUrl =
-      window.location.pathname + (cleanSearch ? `?${cleanSearch}` : "") + window.location.hash;
-    window.history.replaceState(null, "", newUrl);
-    return urlToken;
-  }
-  return sessionStorage.getItem(SESSION_TOKEN_KEY);
+  return path;
 }
 
 function App() {
   if (OPENREPO_MODE) {
     const params = new URLSearchParams(window.location.search);
     const projectId = params.get("project");
-    return projectId ? <Dashboard accessToken="__openrepo__" projectId={projectId} /> : <OpenRepoWorkbench />;
+    return projectId ? <Dashboard projectId={projectId} /> : <OpenRepoWorkbench />;
   }
 
-  const [accessToken, setAccessToken] = useState<string | null>(resolveInitialToken);
-
-  const handleTokenValid = useCallback((token: string) => {
-    sessionStorage.setItem(SESSION_TOKEN_KEY, token);
-    setAccessToken(token);
-  }, []);
-
-  // In demo mode, skip token gate entirely
-  if (DEMO_MODE) {
-    return <Dashboard accessToken="__demo__" />;
-  }
-
-  // Show the token gate when no token is available
-  if (accessToken === null) {
-    return <TokenGate onTokenValid={handleTokenValid} />;
-  }
-
-  return <Dashboard accessToken={accessToken} />;
+  return <Dashboard isDemo={DEMO_MODE} />;
 }
 
-function Dashboard({ accessToken, projectId }: { accessToken: string; projectId?: string }) {
+function Dashboard({ isDemo = false, projectId }: { isDemo?: boolean; projectId?: string }) {
   const setGraph = useDashboardStore((s) => s.setGraph);
   const setDomainGraph = useDashboardStore((s) => s.setDomainGraph);
   const setDiffOverlay = useDashboardStore((s) => s.setDiffOverlay);
@@ -135,22 +95,22 @@ function Dashboard({ accessToken, projectId }: { accessToken: string; projectId?
   const [outputLanguage, setOutputLanguage] = useState<string | undefined>();
 
   useEffect(() => {
-    fetch(dataUrl("meta.json", accessToken, projectId))
+    fetch(dataUrl("meta.json", projectId))
       .then((r) => (r.ok ? r.json() : null))
       .then((meta) => {
         if (meta?.theme) setMetaTheme(meta.theme);
       })
       .catch(() => {});
-    fetch(dataUrl("config.json", accessToken, projectId))
+    fetch(dataUrl("config.json", projectId))
       .then((r) => (r.ok ? r.json() : null))
       .then((config) => {
         if (config?.outputLanguage) setOutputLanguage(config.outputLanguage);
       })
       .catch(() => {});
-  }, [accessToken, projectId]);
+  }, [projectId]);
 
   useEffect(() => {
-    fetch(dataUrl("knowledge-graph.json", accessToken, projectId))
+    fetch(dataUrl("knowledge-graph.json", projectId))
       .then(async (res) => {
         const data = await res.json();
         if (!res.ok) {
@@ -190,10 +150,10 @@ function Dashboard({ accessToken, projectId }: { accessToken: string; projectId?
         console.error("Failed to load knowledge graph:", err);
         setLoadError(`Failed to load knowledge graph: ${err instanceof Error ? err.message : String(err)}`);
       });
-  }, [accessToken, projectId, setGraph]);
+  }, [projectId, setGraph]);
 
   useEffect(() => {
-    fetch(dataUrl("diff-overlay.json", accessToken, projectId))
+    fetch(dataUrl("diff-overlay.json", projectId))
       .then((res) => {
         if (!res.ok) return null;
         return res.json();
@@ -214,10 +174,10 @@ function Dashboard({ accessToken, projectId }: { accessToken: string; projectId?
         }
       })
       .catch(() => {});
-  }, [accessToken, projectId, setDiffOverlay]);
+  }, [projectId, setDiffOverlay]);
 
   useEffect(() => {
-    fetch(dataUrl("domain-graph.json", accessToken, projectId))
+    fetch(dataUrl("domain-graph.json", projectId))
       .then((res) => {
         if (!res.ok) return null;
         return res.json();
@@ -232,13 +192,13 @@ function Dashboard({ accessToken, projectId }: { accessToken: string; projectId?
         }
       })
       .catch(() => {});
-  }, [accessToken, projectId, setDomainGraph]);
+  }, [projectId, setDomainGraph]);
 
   return (
     <I18nProvider language={outputLanguage ?? "en"}>
       <ThemeProvider metaTheme={metaTheme}>
         <DashboardContent
-          accessToken={accessToken}
+          isDemo={isDemo}
           projectId={projectId}
           loadError={loadError}
           graphIssues={graphIssues}
@@ -249,12 +209,12 @@ function Dashboard({ accessToken, projectId }: { accessToken: string; projectId?
 }
 
 function DashboardContent({
-  accessToken,
+  isDemo,
   projectId,
   loadError,
   graphIssues,
 }: {
-  accessToken: string;
+  isDemo: boolean;
   projectId?: string;
   loadError: string | null;
   graphIssues: GraphIssue[];
@@ -461,7 +421,7 @@ function DashboardContent({
   if (isMobile) {
     return (
       <MobileLayout
-        accessToken={accessToken}
+        isDemo={isDemo}
         showKeyboardHelp={showKeyboardHelp}
         setShowKeyboardHelp={setShowKeyboardHelp}
         loadError={loadError}
@@ -699,7 +659,7 @@ function DashboardContent({
         {codeViewerOpen && !codeViewerExpanded && (
           <div className="absolute bottom-0 left-0 right-0 h-[40vh] bg-surface border-t border-border-subtle animate-slide-up z-20 overflow-hidden">
             <Suspense fallback={null}>
-              <CodeViewer accessToken={accessToken} projectId={projectId} onExpand={expandCodeViewer} />
+              <CodeViewer isDemo={isDemo} projectId={projectId} onExpand={expandCodeViewer} />
             </Suspense>
           </div>
         )}
@@ -717,7 +677,7 @@ function DashboardContent({
           >
             <Suspense fallback={null}>
               <CodeViewer
-                accessToken={accessToken}
+                isDemo={isDemo}
                 projectId={projectId}
                 presentation="modal"
                 onClose={collapseCodeViewer}

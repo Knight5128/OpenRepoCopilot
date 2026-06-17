@@ -4,7 +4,7 @@ import { useDashboardStore } from "../store";
 import { useI18n } from "../contexts/I18nContext";
 
 interface CodeViewerProps {
-  accessToken: string;
+  isDemo: boolean;
   projectId?: string;
   presentation?: "sidebar" | "modal";
   onClose?: () => void;
@@ -24,12 +24,12 @@ type SourceState =
   | { status: "loaded"; source: SourceFile; error: null }
   | { status: "error"; source: null; error: string };
 
-function fileContentUrl(filePath: string, token: string, projectId?: string): string {
+function fileContentUrl(filePath: string, projectId?: string): string {
   if (projectId) {
     const params = new URLSearchParams({ path: filePath });
     return `/api/projects/${encodeURIComponent(projectId)}/file-content?${params.toString()}`;
   }
-  const params = new URLSearchParams({ token, path: filePath });
+  const params = new URLSearchParams({ path: filePath });
   return `/file-content.json?${params.toString()}`;
 }
 
@@ -62,7 +62,7 @@ function formatBytes(bytes: number): string {
 }
 
 export default function CodeViewer({
-  accessToken,
+  isDemo,
   projectId,
   presentation = "sidebar",
   onClose,
@@ -93,7 +93,7 @@ export default function CodeViewer({
       return;
     }
 
-    if (accessToken === "__demo__") {
+    if (isDemo) {
       setState({
         status: "error",
         source: null,
@@ -105,7 +105,7 @@ export default function CodeViewer({
     const controller = new AbortController();
     setState({ status: "loading", source: null, error: null });
 
-    fetch(fileContentUrl(node.filePath, accessToken, projectId), { signal: controller.signal })
+    fetch(fileContentUrl(node.filePath, projectId), { signal: controller.signal })
       .then(async (res) => {
         const data = (await res.json()) as SourceFile | { error?: string };
         if (!res.ok) {
@@ -123,7 +123,7 @@ export default function CodeViewer({
       });
 
     return () => controller.abort();
-  }, [accessToken, node?.filePath, projectId]);
+  }, [isDemo, node?.filePath, projectId]);
 
   const highlightedRange = useMemo(() => {
     if (!node?.lineRange) return null;

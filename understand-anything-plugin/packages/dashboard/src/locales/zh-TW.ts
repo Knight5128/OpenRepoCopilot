@@ -122,10 +122,6 @@ export const zhTW = {
     domain: "領域",
     knowledge: "知識",
   },
-  tokenGate: {
-    validating: "驗證中...",
-    continue: "繼續",
-  },
   diffToggle: {
     hideOverlay: "隱藏差異覆蓋",
     showOverlay: "顯示差異覆蓋",

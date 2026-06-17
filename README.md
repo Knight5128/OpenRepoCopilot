@@ -130,6 +130,7 @@ curl -fsSL https://raw.githubusercontent.com/Knight5128/OpenRepoCopilot/main/ins
 
 - OpenRepoCopilot CLI 与本地 API Server
 - React Dashboard
+- Electron 独立应用窗口与 Windows 托盘图标
 - 核心图谱与语言解析逻辑
 - Windows、macOS、Linux 安装脚本
 - Agent Skills 和分析 Worker
@@ -165,6 +166,24 @@ corepack pnpm package:app
 release/openrepo-copilot-app-<timestamp>/
 release/openrepo-copilot-app-<timestamp>.zip
 ```
+
+Windows 安装包需要先安装 [Inno Setup 6](https://jrsoftware.org/isinfo.php)，并确保 `ISCC.exe` 在 `PATH` 中；也可以通过 `INNO_SETUP_COMPILER` 指定 `ISCC.exe` 的完整路径。生成安装包：
+
+```powershell
+corepack pnpm package:app:win-installer
+```
+
+输出位置：
+
+```text
+release/OpenRepoCopilot-Setup-<timestamp>.exe
+```
+
+该安装包会让用户选择安装位置，并创建开始菜单快捷方式；桌面快捷方式为安装时可选项，卸载入口由 Windows 应用列表和开始菜单提供。
+
+Windows App 版启动后会打开独立的 OpenRepoCopilot 应用窗口，并在系统托盘显示图标；关闭窗口会隐藏到托盘，托盘菜单可重新显示、刷新或退出应用。
+
+当前 Windows 安装包仍依赖用户机器已安装 Node.js LTS / Corepack；首次启动会在安装目录运行一次 `corepack pnpm install --frozen-lockfile` 来安装运行依赖。
 
 ### Skill 版本
 
@@ -352,6 +371,7 @@ corepack pnpm test
 corepack pnpm lint
 corepack pnpm dev:dashboard
 corepack pnpm package:app
+corepack pnpm package:app:win-installer
 ```
 
 按模块执行快速检查：

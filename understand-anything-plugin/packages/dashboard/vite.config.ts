@@ -4,13 +4,8 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 import fs from "fs";
-import crypto from "crypto";
 import { createOpenRepoApiMiddleware } from "../openrepo/src/vite-api.ts";
 
-// Generate a one-time token when the server process starts.
-// This token is printed to the terminal and must be in the URL
-// to fetch knowledge-graph.json or diff-overlay.json.
-const ACCESS_TOKEN = process.env.UNDERSTAND_ACCESS_TOKEN || crypto.randomBytes(16).toString("hex");
 const MAX_SOURCE_FILE_BYTES = 1024 * 1024;
 const OPENREPO_MODE = process.env.VITE_OPENREPO_MODE === "true";
 const NO_AUTO_OPEN = process.env.OPENREPO_NO_OPEN === "true";
@@ -190,7 +185,7 @@ export default defineConfig({
   server: {
     host: "127.0.0.1",
     port: 5173,
-    open: NO_AUTO_OPEN ? false : OPENREPO_MODE ? "/" : `/?token=${ACCESS_TOKEN}`,
+    open: NO_AUTO_OPEN ? false : "/",
   },
 
   resolve: {
@@ -247,9 +242,7 @@ export default defineConfig({
         server.httpServer?.once("listening", () => {
           const address = server.httpServer?.address();
           const port = typeof address === "object" && address ? address.port : 5173;
-          const url = OPENREPO_MODE
-            ? `http://127.0.0.1:${port}/`
-            : `http://127.0.0.1:${port}/?token=${ACCESS_TOKEN}`;
+          const url = `http://127.0.0.1:${port}/`;
           console.log(`\n  Dashboard URL: ${url}\n`);
         });
 
@@ -266,13 +259,6 @@ export default defineConfig({
 
           if (!isProtectedEndpoint) {
             next();
-            return;
-          }
-
-          // FIX 3 — require the one-time token on all data endpoints.
-          // Requests without a matching ?token= get a 403.
-          if (url.searchParams.get("token") !== ACCESS_TOKEN) {
-            sendJson(res, 403, { error: "Forbidden: missing or invalid token" });
             return;
           }
 

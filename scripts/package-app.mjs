@@ -77,6 +77,7 @@ function gitFiles() {
 
 function copyFile(sourceRelative, target) {
   const source = path.join(repoRoot, sourceRelative);
+  if (!fs.existsSync(source)) return;
   if (!fs.statSync(source).isFile()) return;
   fs.mkdirSync(path.dirname(target), { recursive: true });
   fs.copyFileSync(source, target);

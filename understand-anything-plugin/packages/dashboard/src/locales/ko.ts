@@ -122,10 +122,6 @@ export const ko = {
     domain: "도메인",
     knowledge: "지식",
   },
-  tokenGate: {
-    validating: "검증 중...",
-    continue: "계속",
-  },
   diffToggle: {
     hideOverlay: "차분 오버레이 숨기기",
     showOverlay: "차분 오버레이 표시",

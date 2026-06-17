@@ -6,15 +6,20 @@
   "scripts": {
     "prepare": "pnpm --filter @understand-anything/core build",
     "build": "pnpm -r build",
+    "assets:logo": "node scripts/export-logo-assets.mjs",
+    "app:start": "electron scripts/openrepo-electron-main.mjs",
     "package:app": "node scripts/package-app.mjs",
+    "package:app:win-installer": "node scripts/package-windows-installer.mjs",
     "test": "vitest run",
     "dev:dashboard": "pnpm --filter @understand-anything/dashboard dev",
     "lint": "eslint ."
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
+    "electron": "^42.4.1",
     "eslint": "^9.0.0",
     "globals": "^17.6.0",
+    "sharp": "^0.35.1",
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.0.0",
     "vitest": "^3.1.0"

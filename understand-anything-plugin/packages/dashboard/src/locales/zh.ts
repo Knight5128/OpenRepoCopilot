@@ -122,10 +122,6 @@ export const zh = {
     domain: "领域",
     knowledge: "知识",
   },
-  tokenGate: {
-    validating: "验证中...",
-    continue: "继续",
-  },
   diffToggle: {
     hideOverlay: "隐藏差异覆盖",
     showOverlay: "显示差异覆盖",

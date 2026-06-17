@@ -122,10 +122,6 @@ export const ru = {
     domain: "Домен",
     knowledge: "Знания",
   },
-  tokenGate: {
-    validating: "Проверка...",
-    continue: "Продолжить",
-  },
   diffToggle: {
     hideOverlay: "Скрыть наложение изменений",
     showOverlay: "Показать наложение изменений",
